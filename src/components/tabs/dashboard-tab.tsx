@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useDashboardStats, useServiceLogs, useUser, useCompletedStops, useToggleStopComplete } from '@/lib/hooks';
+import { useDashboardStats, useServiceLogs, useUser, useCompletedStops, useToggleStopComplete, useRevenueData } from '@/lib/hooks';
 import { StatCard } from '@/components/ui/stat-card';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { ServiceLogModal } from './service-log-modal';
-import { Calendar, CheckCircle, AlertTriangle, Clock, MapPin, Droplets, ClipboardList, Check, Navigation, Calculator } from 'lucide-react';
+import { Calendar, CheckCircle, AlertTriangle, Clock, MapPin, Droplets, ClipboardList, Check, Navigation, Calculator, DollarSign, TrendingUp, Users as UsersIcon } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { StandaloneDosingCalculator } from '@/components/chemical-calculator';
 import { motion } from 'framer-motion';
@@ -20,6 +20,7 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
   const { data: recentLogs } = useServiceLogs();
   const { data: completedStops } = useCompletedStops();
   const toggleComplete = useToggleStopComplete();
+  const { data: revenue } = useRevenueData(orgId);
 
   const today = new Date();
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -63,7 +64,7 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
       {/* Greeting */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
         <h2 className="text-2xl font-bold text-[#1A1A2E]">
-          Good {today.getHours() < 12 ? 'morning' : today.getHours() < 17 ? 'afternoon' : 'evening'}
+          Good {today.getHours() >= 5 && today.getHours() < 12 ? 'morning' : today.getHours() >= 12 && today.getHours() < 17 ? 'afternoon' : today.getHours() >= 17 && today.getHours() < 21 ? 'evening' : 'night'}
         </h2>
         <p className="text-[#64748B] text-sm">{dayNames[today.getDay()]}, {format(today, 'MMMM d')}</p>
       </motion.div>
@@ -275,6 +276,89 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
                 </span>
               </div>
             ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Revenue Dashboard */}
+      {revenue && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.42 }}
+          className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden"
+        >
+          <div className="px-5 py-4 border-b border-[#F1F5F9]">
+            <h3 className="font-semibold text-[#1A1A2E] text-sm">Revenue</h3>
+          </div>
+          <div className="p-5 space-y-5">
+            {/* Revenue Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <div className="w-8 h-8 mx-auto mb-1.5 bg-[#10B981]/8 rounded-lg flex items-center justify-center">
+                  <DollarSign size={14} className="text-[#10B981]" />
+                </div>
+                <p className="text-lg font-bold text-[#1A1A2E]">${(revenue.monthlyProjected / 100).toLocaleString()}</p>
+                <p className="text-[10px] text-[#94A3B8] uppercase font-medium">Monthly</p>
+              </div>
+              <div className="text-center">
+                <div className="w-8 h-8 mx-auto mb-1.5 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+                  <TrendingUp size={14} className="text-[#0066FF]" />
+                </div>
+                <p className="text-lg font-bold text-[#1A1A2E]">${((revenue.monthlyProjected * 12) / 100).toLocaleString()}</p>
+                <p className="text-[10px] text-[#94A3B8] uppercase font-medium">Projected/yr</p>
+              </div>
+              <div className="text-center">
+                <div className="w-8 h-8 mx-auto mb-1.5 bg-[#F59E0B]/8 rounded-lg flex items-center justify-center">
+                  <UsersIcon size={14} className="text-[#F59E0B]" />
+                </div>
+                <p className="text-lg font-bold text-[#1A1A2E]">{revenue.totalCustomers}</p>
+                <p className="text-[10px] text-[#94A3B8] uppercase font-medium">Subscribed</p>
+              </div>
+            </div>
+
+            {/* Monthly Chart */}
+            {revenue.monthlyData.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-[#64748B] mb-3">Service Volume (6 months)</p>
+                <div className="flex items-end gap-2 h-24">
+                  {revenue.monthlyData.map((m) => {
+                    const max = Math.max(...revenue.monthlyData.map(d => d.services), 1);
+                    const height = Math.max((m.services / max) * 100, 4);
+                    return (
+                      <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
+                        <span className="text-[10px] text-[#64748B] font-medium tabular-nums">{m.services}</span>
+                        <div
+                          className="w-full bg-[#0066FF] rounded-t-md transition-all"
+                          style={{ height: `${height}%` }}
+                        />
+                        <span className="text-[10px] text-[#94A3B8]">{m.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Per Customer Breakdown */}
+            {revenue.perCustomer.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-[#64748B] mb-2">Revenue by Customer</p>
+                <div className="space-y-2">
+                  {revenue.perCustomer.slice(0, 5).map((c) => (
+                    <div key={c.customerId} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-full bg-[#0066FF]/8 text-[#0066FF] flex items-center justify-center text-[10px] font-semibold shrink-0">
+                          {c.customerName.charAt(0)}
+                        </div>
+                        <span className="text-sm text-[#1A1A2E] truncate">{c.customerName}</span>
+                      </div>
+                      <span className="text-sm font-medium text-[#1A1A2E] tabular-nums shrink-0">${(c.monthlyCents / 100).toFixed(0)}/mo</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

@@ -464,6 +464,74 @@ export function useTechnicians(orgId?: string) {
   });
 }
 
+// Revenue Data
+export function useRevenueData(orgId?: string) {
+  return useQuery({
+    queryKey: ['revenue', orgId],
+    queryFn: async () => {
+      if (!orgId) return null;
+
+      // Get all active subscriptions with customer info
+      const { data: subscriptions, error: subError } = await supabase
+        .from('subscriptions')
+        .select('*, customers(name)')
+        .eq('status', 'active');
+      if (subError) throw subError;
+
+      // Filter to org customers
+      const { data: orgCustomerIds } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('organization_id', orgId);
+      const customerIdSet = new Set(orgCustomerIds?.map(c => c.id) ?? []);
+      const orgSubs = (subscriptions ?? []).filter(s => customerIdSet.has(s.customer_id));
+
+      // Monthly projected from active subs
+      const monthlyProjected = orgSubs.reduce((sum, s) => sum + s.price_cents, 0);
+
+      // Per-customer revenue
+      const perCustomer = orgSubs.map(s => ({
+        customerId: s.customer_id,
+        customerName: (s.customers as { name: string } | null)?.name ?? 'Unknown',
+        monthlyCents: s.price_cents,
+      })).sort((a, b) => b.monthlyCents - a.monthlyCents);
+
+      // Service volume by month (last 6 months) as revenue proxy
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const { data: logs } = await supabase
+        .from('service_logs')
+        .select('service_date, customer_id')
+        .gte('service_date', sixMonthsAgo.toISOString().split('T')[0])
+        .order('service_date');
+
+      // Filter to org customers
+      const orgLogs = (logs ?? []).filter(l => customerIdSet.has(l.customer_id));
+
+      // Group by month
+      const monthlyData: { month: string; label: string; services: number; revenueCents: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = d.toLocaleString('default', { month: 'short' });
+        const services = orgLogs.filter(l => l.service_date.startsWith(monthKey)).length;
+        // Estimate revenue: if current month use projected, else use proportional
+        const revenueCents = i === 0 ? monthlyProjected : Math.round(monthlyProjected * (services > 0 ? 1 : 0));
+        monthlyData.push({ month: monthKey, label, services, revenueCents });
+      }
+
+      return {
+        monthlyProjected,
+        perCustomer,
+        monthlyData,
+        totalCustomers: perCustomer.length,
+      };
+    },
+    enabled: !!orgId,
+  });
+}
+
 // Dashboard Stats
 export function useDashboardStats(orgId?: string) {
   return useQuery({

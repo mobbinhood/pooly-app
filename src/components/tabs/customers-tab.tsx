@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Users, Phone, Mail, MapPin, Edit2, Trash2, ChevronRight, X, Loader2, Droplets, Beaker, Calendar, UserPlus } from 'lucide-react';
+import { Plus, Search, Users, Phone, Mail, MapPin, Edit2, Trash2, ChevronRight, X, Loader2, Droplets, Beaker, Calendar, UserPlus, Clock, ChevronDown, ChevronUp, Wrench, AlertCircle, CheckCircle2, Camera, MessageSquare, CalendarPlus, Key, Car, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -258,8 +258,9 @@ function CustomerDetailSheet({
   onEdit: (c: Customer) => void;
   onDelete: (c: Customer) => void;
 }) {
-  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'pools' | 'history'>('info');
+  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'equipment' | 'history'>('info');
   const [showPoolForm, setShowPoolForm] = useState(false);
+  const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const { data: pools } = usePools(customer?.id);
   const { data: logs } = useServiceLogs(customer?.id);
   const createPool = useCreatePool();
@@ -289,13 +290,28 @@ function CustomerDetailSheet({
 
   if (!customer) return null;
 
+  // Get last service date for equipment
+  const lastServiceDate = logs?.[0]?.service_date;
+  const lastEquipmentStatus = logs?.[0]?.equipment_status as Record<string, string> | null;
+
   const detailTabs = [
     { id: 'info' as const, label: 'Info' },
-    { id: 'pools' as const, label: `Pools${pools?.length ? ` (${pools.length})` : ''}` },
-    { id: 'history' as const, label: 'History' },
+    { id: 'history' as const, label: `History${logs?.length ? ` (${logs.length})` : ''}` },
+    { id: 'equipment' as const, label: `Equipment${pools?.length ? ` (${pools.length})` : ''}` },
   ];
 
   const inputClass = "w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-sm text-[#1A1A2E] placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition";
+
+  const equipmentStatusColor = (status: string) => {
+    switch (status) {
+      case 'good': return 'bg-[#10B981]/10 text-[#10B981]';
+      case 'needs_cleaning': case 'needs_attention': return 'bg-[#F59E0B]/10 text-[#F59E0B]';
+      case 'not_working': return 'bg-[#EF4444]/10 text-[#EF4444]';
+      default: return 'bg-[#94A3B8]/10 text-[#94A3B8]';
+    }
+  };
+
+  const equipmentStatusLabel = (status: string) => status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
   return (
     <Modal open={!!customer} onClose={onClose} title={customer.name} size="lg">
@@ -312,6 +328,26 @@ function CustomerDetailSheet({
               {customer.address}, {customer.city}, {customer.state}
             </p>
           </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-3 gap-2">
+          {customer.phone && (
+            <a href={`tel:${customer.phone}`} className="flex flex-col items-center gap-1.5 p-3 bg-[#10B981]/5 rounded-lg hover:bg-[#10B981]/10 transition">
+              <Phone size={16} className="text-[#10B981]" />
+              <span className="text-[10px] font-medium text-[#10B981]">Call</span>
+            </a>
+          )}
+          {customer.email && (
+            <a href={`mailto:${customer.email}`} className="flex flex-col items-center gap-1.5 p-3 bg-[#0066FF]/5 rounded-lg hover:bg-[#0066FF]/10 transition">
+              <Mail size={16} className="text-[#0066FF]" />
+              <span className="text-[10px] font-medium text-[#0066FF]">Email</span>
+            </a>
+          )}
+          <button onClick={() => onEdit(customer)} className="flex flex-col items-center gap-1.5 p-3 bg-[#F59E0B]/5 rounded-lg hover:bg-[#F59E0B]/10 transition">
+            <Edit2 size={16} className="text-[#F59E0B]" />
+            <span className="text-[10px] font-medium text-[#F59E0B]">Edit</span>
+          </button>
         </div>
 
         {/* Tab Switcher */}
@@ -336,32 +372,32 @@ function CustomerDetailSheet({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               {customer.email && (
-                <a href={`mailto:${customer.email}`} className="flex items-center gap-2.5 p-3.5 bg-[#F8FAFC] rounded-lg hover:bg-[#F1F5F9] transition">
-                  <div className="w-8 h-8 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+                <div className="flex items-center gap-2.5 p-3.5 bg-[#F8FAFC] rounded-lg">
+                  <div className="w-8 h-8 bg-[#0066FF]/8 rounded-lg flex items-center justify-center shrink-0">
                     <Mail size={14} className="text-[#0066FF]" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Email</p>
                     <p className="text-sm text-[#1A1A2E] truncate">{customer.email}</p>
                   </div>
-                </a>
+                </div>
               )}
               {customer.phone && (
-                <a href={`tel:${customer.phone}`} className="flex items-center gap-2.5 p-3.5 bg-[#F8FAFC] rounded-lg hover:bg-[#F1F5F9] transition">
-                  <div className="w-8 h-8 bg-[#10B981]/8 rounded-lg flex items-center justify-center">
+                <div className="flex items-center gap-2.5 p-3.5 bg-[#F8FAFC] rounded-lg">
+                  <div className="w-8 h-8 bg-[#10B981]/8 rounded-lg flex items-center justify-center shrink-0">
                     <Phone size={14} className="text-[#10B981]" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Phone</p>
                     <p className="text-sm text-[#1A1A2E]">{customer.phone}</p>
                   </div>
-                </a>
+                </div>
               )}
             </div>
 
             <div className="p-3.5 bg-[#F8FAFC] rounded-lg">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-[#0066FF]/8 rounded-lg flex items-center justify-center shrink-0">
                   <MapPin size={14} className="text-[#0066FF]" />
                 </div>
                 <div>
@@ -371,31 +407,271 @@ function CustomerDetailSheet({
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => onEdit(customer)}
-                className="flex-1 py-2.5 flex items-center justify-center gap-2 border border-[#E2E8F0] rounded-lg text-[#1A1A2E] font-medium hover:bg-[#F8FAFC] transition text-sm"
-              >
-                <Edit2 size={14} />
-                Edit
-              </button>
-              <button
-                onClick={() => onDelete(customer)}
-                className="flex-1 py-2.5 flex items-center justify-center gap-2 border border-[#EF4444]/20 rounded-lg text-[#EF4444] font-medium hover:bg-[#EF4444]/5 transition text-sm"
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
+            {/* Access Details */}
+            {(customer.gate_code || customer.access_notes || customer.parking_info) && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-[#64748B]">Access Details</p>
+                {customer.gate_code && (
+                  <div className="flex items-center gap-2.5 p-3 bg-[#F8FAFC] rounded-lg">
+                    <Key size={14} className="text-[#64748B] shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Gate Code</p>
+                      <p className="text-sm text-[#1A1A2E] font-mono">{customer.gate_code}</p>
+                    </div>
+                  </div>
+                )}
+                {customer.access_notes && (
+                  <div className="flex items-start gap-2.5 p-3 bg-[#F8FAFC] rounded-lg">
+                    <FileText size={14} className="text-[#64748B] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Access Notes</p>
+                      <p className="text-sm text-[#1A1A2E]">{customer.access_notes}</p>
+                    </div>
+                  </div>
+                )}
+                {customer.parking_info && (
+                  <div className="flex items-start gap-2.5 p-3 bg-[#F8FAFC] rounded-lg">
+                    <Car size={14} className="text-[#64748B] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Parking</p>
+                      <p className="text-sm text-[#1A1A2E]">{customer.parking_info}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Pool Summary */}
+            {pools && pools.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-[#64748B]">Pools</p>
+                {pools.map(pool => (
+                  <div key={pool.id} className="flex items-center gap-2.5 p-3 bg-[#F8FAFC] rounded-lg">
+                    <Droplets size={14} className="text-[#0066FF] shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-[#1A1A2E] capitalize">{pool.type.replace('_', ' ')}</p>
+                      <p className="text-xs text-[#94A3B8]">
+                        {pool.size_gallons ? `${pool.size_gallons.toLocaleString()} gal` : 'Size unknown'}
+                        {pool.surface_type && ` · ${pool.surface_type}`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Customer Since + Last Service */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-[#F8FAFC] rounded-lg text-center">
+                <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Customer Since</p>
+                <p className="text-sm font-medium text-[#1A1A2E] mt-0.5">{format(new Date(customer.created_at), 'MMM yyyy')}</p>
+              </div>
+              <div className="p-3 bg-[#F8FAFC] rounded-lg text-center">
+                <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Last Service</p>
+                <p className="text-sm font-medium text-[#1A1A2E] mt-0.5">
+                  {lastServiceDate ? format(new Date(lastServiceDate), 'MMM d, yyyy') : 'None'}
+                </p>
+              </div>
             </div>
+
+            <button
+              onClick={() => onDelete(customer)}
+              className="w-full py-2.5 flex items-center justify-center gap-2 border border-[#EF4444]/20 rounded-lg text-[#EF4444] font-medium hover:bg-[#EF4444]/5 transition text-sm"
+            >
+              <Trash2 size={14} />
+              Delete Customer
+            </button>
           </div>
         )}
 
-        {/* Pools Tab */}
-        {activeDetailTab === 'pools' && (
+        {/* History Tab - Service Timeline */}
+        {activeDetailTab === 'history' && (
+          <div className="space-y-3">
+            {logs && logs.length > 0 ? (
+              <div className="relative">
+                {/* Timeline line */}
+                <div className="absolute left-[18px] top-4 bottom-4 w-px bg-[#E2E8F0]" />
+                <div className="space-y-3">
+                  {logs.map((log) => {
+                    const isExpanded = expandedLog === log.id;
+                    const equipStatus = log.equipment_status as Record<string, string> | null;
+                    const chemicals = log.chemicals_added as Array<{ chemical: string; amount: number; unit: string }> | null;
+                    return (
+                      <div key={log.id} className="relative pl-10">
+                        {/* Timeline dot */}
+                        <div className="absolute left-[14px] top-3.5 w-2.5 h-2.5 rounded-full bg-[#0066FF] border-2 border-white ring-2 ring-[#0066FF]/20 z-10" />
+                        <div
+                          onClick={() => setExpandedLog(isExpanded ? null : log.id)}
+                          className="bg-[#F8FAFC] rounded-lg p-3.5 cursor-pointer hover:bg-[#F1F5F9] transition"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-[#1A1A2E]">
+                                {format(new Date(log.service_date), 'MMM d, yyyy')}
+                              </p>
+                              {log.users?.name && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-[#0066FF]/8 text-[#0066FF] rounded-full">{log.users.name}</span>
+                              )}
+                            </div>
+                            {isExpanded ? <ChevronUp size={14} className="text-[#94A3B8]" /> : <ChevronDown size={14} className="text-[#94A3B8]" />}
+                          </div>
+                          {/* Chemical Readings Badges */}
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                            {log.ph_level != null && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                log.ph_level >= 7.2 && log.ph_level <= 7.8 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
+                              }`}>pH {log.ph_level}</span>
+                            )}
+                            {log.chlorine_level != null && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                log.chlorine_level >= 1.0 && log.chlorine_level <= 3.0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
+                              }`}>Cl {log.chlorine_level}</span>
+                            )}
+                            {log.alkalinity != null && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                log.alkalinity >= 80 && log.alkalinity <= 120 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
+                              }`}>Alk {log.alkalinity}</span>
+                            )}
+                            {log.time_on_site_minutes != null && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#64748B]/10 text-[#64748B] font-medium flex items-center gap-0.5">
+                                <Clock size={8} />{log.time_on_site_minutes}m
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Expanded Details */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="mt-3 pt-3 border-t border-[#E2E8F0] space-y-3">
+                                  {/* Full Readings */}
+                                  <div>
+                                    <p className="text-[10px] text-[#94A3B8] font-medium uppercase mb-1.5">Water Chemistry</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {log.ph_level != null && (
+                                        <div className="text-center p-2 bg-white rounded-md">
+                                          <p className="text-[10px] text-[#94A3B8]">pH</p>
+                                          <p className="text-sm font-semibold text-[#1A1A2E]">{log.ph_level}</p>
+                                        </div>
+                                      )}
+                                      {log.chlorine_level != null && (
+                                        <div className="text-center p-2 bg-white rounded-md">
+                                          <p className="text-[10px] text-[#94A3B8]">Chlorine</p>
+                                          <p className="text-sm font-semibold text-[#1A1A2E]">{log.chlorine_level}</p>
+                                        </div>
+                                      )}
+                                      {log.alkalinity != null && (
+                                        <div className="text-center p-2 bg-white rounded-md">
+                                          <p className="text-[10px] text-[#94A3B8]">Alkalinity</p>
+                                          <p className="text-sm font-semibold text-[#1A1A2E]">{log.alkalinity}</p>
+                                        </div>
+                                      )}
+                                      {log.cya != null && (
+                                        <div className="text-center p-2 bg-white rounded-md">
+                                          <p className="text-[10px] text-[#94A3B8]">CYA</p>
+                                          <p className="text-sm font-semibold text-[#1A1A2E]">{log.cya}</p>
+                                        </div>
+                                      )}
+                                      {log.calcium != null && (
+                                        <div className="text-center p-2 bg-white rounded-md">
+                                          <p className="text-[10px] text-[#94A3B8]">Calcium</p>
+                                          <p className="text-sm font-semibold text-[#1A1A2E]">{log.calcium}</p>
+                                        </div>
+                                      )}
+                                      {log.salt_level != null && (
+                                        <div className="text-center p-2 bg-white rounded-md">
+                                          <p className="text-[10px] text-[#94A3B8]">Salt</p>
+                                          <p className="text-sm font-semibold text-[#1A1A2E]">{log.salt_level}</p>
+                                        </div>
+                                      )}
+                                      {log.water_temp != null && (
+                                        <div className="text-center p-2 bg-white rounded-md">
+                                          <p className="text-[10px] text-[#94A3B8]">Temp</p>
+                                          <p className="text-sm font-semibold text-[#1A1A2E]">{log.water_temp}°</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Equipment Status */}
+                                  {equipStatus && Object.keys(equipStatus).length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] text-[#94A3B8] font-medium uppercase mb-1.5">Equipment Status</p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {Object.entries(equipStatus).map(([key, val]) => (
+                                          <span key={key} className={`text-[10px] px-2 py-1 rounded-full font-medium capitalize ${equipmentStatusColor(val)}`}>
+                                            {key.replace('_', ' ')}: {equipmentStatusLabel(val)}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Chemicals Added */}
+                                  {chemicals && chemicals.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] text-[#94A3B8] font-medium uppercase mb-1.5">Chemicals Added</p>
+                                      <div className="space-y-1">
+                                        {chemicals.map((c, i) => (
+                                          <div key={i} className="flex items-center gap-2 text-sm text-[#1A1A2E]">
+                                            <Beaker size={12} className="text-[#64748B]" />
+                                            <span>{c.chemical} - {c.amount} {c.unit}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Notes */}
+                                  {log.notes && (
+                                    <div>
+                                      <p className="text-[10px] text-[#94A3B8] font-medium uppercase mb-1">Notes</p>
+                                      <div className="flex items-start gap-2">
+                                        <MessageSquare size={12} className="text-[#64748B] shrink-0 mt-0.5" />
+                                        <p className="text-sm text-[#1A1A2E]">{log.notes}</p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Photos */}
+                                  {log.photos && log.photos.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] text-[#94A3B8] font-medium uppercase mb-1.5 flex items-center gap-1">
+                                        <Camera size={10} /> {log.photos.length} Photo{log.photos.length > 1 ? 's' : ''}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="w-10 h-10 text-[#CBD5E1] mx-auto mb-3" />
+                <p className="text-[#64748B] text-sm font-medium">No service history yet</p>
+                <p className="text-[#94A3B8] text-xs mt-1">Service visits will appear here as a timeline</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Equipment Tab */}
+        {activeDetailTab === 'equipment' && (
           <div className="space-y-3">
             {pools && pools.length > 0 ? (
               pools.map((pool) => (
-                <div key={pool.id} className="bg-[#F8FAFC] rounded-lg p-4">
+                <div key={pool.id} className="bg-[#F8FAFC] rounded-lg p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
@@ -416,15 +692,116 @@ function CustomerDetailSheet({
                       <Trash2 size={14} />
                     </button>
                   </div>
+
+                  {/* Equipment Items */}
+                  <div className="space-y-2 ml-12">
+                    {pool.has_pump && (
+                      <div className="flex items-center justify-between p-2.5 bg-white rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Wrench size={12} className="text-[#64748B]" />
+                          <div>
+                            <p className="text-sm text-[#1A1A2E]">Pump</p>
+                            {lastEquipmentStatus?.pump && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${equipmentStatusColor(lastEquipmentStatus.pump)}`}>
+                                {equipmentStatusLabel(lastEquipmentStatus.pump)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {lastServiceDate && (
+                          <p className="text-[10px] text-[#94A3B8]">Last: {format(new Date(lastServiceDate), 'MMM d')}</p>
+                        )}
+                      </div>
+                    )}
+                    {pool.has_filter && (
+                      <div className="flex items-center justify-between p-2.5 bg-white rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Wrench size={12} className="text-[#64748B]" />
+                          <div>
+                            <p className="text-sm text-[#1A1A2E]">Filter{pool.filter_type ? ` (${pool.filter_type})` : ''}</p>
+                            {lastEquipmentStatus?.filter && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${equipmentStatusColor(lastEquipmentStatus.filter)}`}>
+                                {equipmentStatusLabel(lastEquipmentStatus.filter)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {lastServiceDate && (
+                          <p className="text-[10px] text-[#94A3B8]">Last: {format(new Date(lastServiceDate), 'MMM d')}</p>
+                        )}
+                      </div>
+                    )}
+                    {pool.has_heater && (
+                      <div className="flex items-center justify-between p-2.5 bg-white rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Wrench size={12} className="text-[#64748B]" />
+                          <div>
+                            <p className="text-sm text-[#1A1A2E]">Heater{pool.heater_type ? ` (${pool.heater_type})` : ''}</p>
+                            {lastEquipmentStatus?.heater && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${equipmentStatusColor(lastEquipmentStatus.heater)}`}>
+                                {equipmentStatusLabel(lastEquipmentStatus.heater)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {lastServiceDate && (
+                          <p className="text-[10px] text-[#94A3B8]">Last: {format(new Date(lastServiceDate), 'MMM d')}</p>
+                        )}
+                      </div>
+                    )}
+                    {pool.has_cleaner && (
+                      <div className="flex items-center justify-between p-2.5 bg-white rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Wrench size={12} className="text-[#64748B]" />
+                          <div>
+                            <p className="text-sm text-[#1A1A2E]">Cleaner{pool.cleaner_type ? ` (${pool.cleaner_type})` : ''}</p>
+                            {lastEquipmentStatus?.cleaner && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${equipmentStatusColor(lastEquipmentStatus.cleaner)}`}>
+                                {equipmentStatusLabel(lastEquipmentStatus.cleaner)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {lastServiceDate && (
+                          <p className="text-[10px] text-[#94A3B8]">Last: {format(new Date(lastServiceDate), 'MMM d')}</p>
+                        )}
+                      </div>
+                    )}
+                    {pool.has_salt_system && (
+                      <div className="flex items-center justify-between p-2.5 bg-white rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Wrench size={12} className="text-[#64748B]" />
+                          <div>
+                            <p className="text-sm text-[#1A1A2E]">Salt System{pool.salt_system_model ? ` (${pool.salt_system_model})` : ''}</p>
+                            {lastEquipmentStatus?.salt_system && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${equipmentStatusColor(lastEquipmentStatus.salt_system)}`}>
+                                {equipmentStatusLabel(lastEquipmentStatus.salt_system)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {lastServiceDate && (
+                          <p className="text-[10px] text-[#94A3B8]">Last: {format(new Date(lastServiceDate), 'MMM d')}</p>
+                        )}
+                      </div>
+                    )}
+                    {!pool.has_pump && !pool.has_filter && !pool.has_heater && !pool.has_cleaner && !pool.has_salt_system && (
+                      <p className="text-xs text-[#94A3B8] italic">No equipment tracked for this pool</p>
+                    )}
+                  </div>
+
                   {pool.equipment_notes && (
-                    <p className="text-xs text-[#64748B] mt-2 ml-12">{pool.equipment_notes}</p>
+                    <div className="ml-12 flex items-start gap-2 p-2.5 bg-white rounded-lg">
+                      <FileText size={12} className="text-[#64748B] shrink-0 mt-0.5" />
+                      <p className="text-xs text-[#64748B]">{pool.equipment_notes}</p>
+                    </div>
                   )}
                 </div>
               ))
             ) : !showPoolForm ? (
               <div className="text-center py-6">
-                <Droplets className="w-8 h-8 text-[#CBD5E1] mx-auto mb-2" />
-                <p className="text-[#64748B] text-sm">No pools added yet</p>
+                <Wrench className="w-8 h-8 text-[#CBD5E1] mx-auto mb-2" />
+                <p className="text-[#64748B] text-sm">No pools or equipment yet</p>
               </div>
             ) : null}
 
@@ -492,54 +869,6 @@ function CustomerDetailSheet({
               message="Remove this pool from the customer?"
               confirmLabel="Remove"
             />
-          </div>
-        )}
-
-        {/* History Tab */}
-        {activeDetailTab === 'history' && (
-          <div className="space-y-3">
-            {logs && logs.length > 0 ? (
-              logs.slice(0, 10).map((log) => (
-                <div key={log.id} className="bg-[#F8FAFC] rounded-lg p-3.5 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-[#0066FF]/8 text-[#0066FF] flex items-center justify-center shrink-0">
-                    <Beaker size={14} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-[#1A1A2E]">
-                        {format(new Date(log.service_date), 'MMM d, yyyy')}
-                      </p>
-                      {log.users?.name && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-[#0066FF]/8 text-[#0066FF] rounded-full">{log.users.name}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {log.ph_level != null && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                          log.ph_level >= 7.2 && log.ph_level <= 7.8 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
-                        }`}>pH {log.ph_level}</span>
-                      )}
-                      {log.chlorine_level != null && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                          log.chlorine_level >= 1.0 && log.chlorine_level <= 3.0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
-                        }`}>Cl {log.chlorine_level}</span>
-                      )}
-                      {log.alkalinity != null && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                          log.alkalinity >= 80 && log.alkalinity <= 120 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
-                        }`}>Alk {log.alkalinity}</span>
-                      )}
-                    </div>
-                    {log.notes && <p className="text-xs text-[#64748B] mt-1 truncate">{log.notes}</p>}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-6">
-                <Calendar className="w-8 h-8 text-[#CBD5E1] mx-auto mb-2" />
-                <p className="text-[#64748B] text-sm">No service history yet</p>
-              </div>
-            )}
           </div>
         )}
       </div>
