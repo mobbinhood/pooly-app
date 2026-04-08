@@ -13,6 +13,7 @@ import { Plus, Search, Users, Phone, Mail, MapPin, Edit2, Trash2, ChevronRight, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { Database } from '@/lib/supabase';
 
 type Customer = Database['public']['Tables']['customers']['Row'];
@@ -22,6 +23,7 @@ export function CustomersTab({ orgId }: { orgId: string }) {
   const createCustomer = useCreateCustomer();
   const updateCustomer = useUpdateCustomer();
   const deleteCustomer = useDeleteCustomer();
+  const router = useRouter();
 
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -106,7 +108,7 @@ export function CustomersTab({ orgId }: { orgId: string }) {
                 className="border-b border-[#F1F5F9] last:border-0"
               >
                 <div
-                  onClick={() => setSelectedCustomer(customer)}
+                  onClick={() => router.push(`/customer/${customer.id}`)}
                   className="px-4 py-3.5 flex items-center gap-3 hover:bg-[#F8FAFC] transition cursor-pointer"
                 >
                   <div className="w-9 h-9 rounded-full bg-[#0066FF]/8 text-[#0066FF] flex items-center justify-center font-semibold text-sm shrink-0">
