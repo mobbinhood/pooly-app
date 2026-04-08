@@ -1,15 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f9fafb;
-  --foreground: #111827;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #111827;
-    --foreground: #f9fafb;
-  }
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 body {
@@ -20,43 +13,53 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Safe area for mobile devices */
 .safe-area-inset-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Smooth scrolling */
 html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: #cbd5e1;
   border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+  background: #94a3b8;
 }
 
-/* Focus styles */
 input:focus,
 select:focus,
 textarea:focus {
   outline: none;
 }
 
-/* Button active state */
 button:active {
   transform: scale(0.98);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.animated-gradient {
+  background: linear-gradient(-45deg, #2563eb, #0ea5e9, #06b6d4, #2563eb);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
