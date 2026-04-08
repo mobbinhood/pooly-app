@@ -165,9 +165,13 @@ function calculateDosages(gallons: number, readings: ChemicalReading): Dosage[] 
 export function InlineDosingCalculator({
   readings,
   poolSizeGallons,
+  waterTemp,
+  tds,
 }: {
   readings: ChemicalReading;
   poolSizeGallons?: number | null;
+  waterTemp?: number;
+  tds?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [manualGallons, setManualGallons] = useState('');
@@ -251,6 +255,50 @@ export function InlineDosingCalculator({
               Enter pool size to see dosing recommendations
             </p>
           )}
+
+          {/* LSI Calculator */}
+          {readings.ph_level && readings.calcium && readings.alkalinity && waterTemp ? (() => {
+            const lsi = calculateLSI(
+              readings.ph_level,
+              waterTemp,
+              readings.calcium,
+              readings.alkalinity,
+              tds || 1000
+            );
+            const status = getLSIStatus(lsi);
+            return (
+              <div className="rounded-lg border p-3" style={{ borderColor: `${status.color}30`, backgroundColor: `${status.color}08` }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Gauge size={12} className="text-[#64748B]" />
+                    <span className="text-[10px] font-medium text-[#64748B] uppercase">LSI</span>
+                  </div>
+                  <span className="text-lg font-bold tabular-nums" style={{ color: status.color }}>
+                    {lsi > 0 ? '+' : ''}{lsi.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color }} />
+                  <span className="text-xs font-semibold" style={{ color: status.color }}>{status.label}</span>
+                </div>
+                <p className="text-[10px] text-[#64748B]">{status.description}</p>
+                {/* Mini scale */}
+                <div className="mt-2">
+                  <div className="relative h-1.5 rounded-full bg-gradient-to-r from-[#EF4444] via-[#10B981] to-[#EF4444] overflow-hidden">
+                    <div
+                      className="absolute top-0 w-1 h-full bg-white border border-[#1A1A2E] rounded-full"
+                      style={{ left: `${Math.min(Math.max((lsi + 1) / 2 * 100, 0), 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-0.5">
+                    <span className="text-[8px] text-[#94A3B8]">-1.0</span>
+                    <span className="text-[8px] text-[#10B981] font-medium">0</span>
+                    <span className="text-[8px] text-[#94A3B8]">+1.0</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })() : null}
 
           {gallons > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">

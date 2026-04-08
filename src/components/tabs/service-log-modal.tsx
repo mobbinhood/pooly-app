@@ -24,8 +24,9 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
   const { data: customers } = useCustomers(orgId);
   const createLog = useCreateServiceLog();
   const supabase = createClient();
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [beforePhotos, setBeforePhotos] = useState<string[]>([]);
+  const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
+  const [uploading, setUploading] = useState<'before' | 'after' | false>(false);
   const [sendReport, setSendReport] = useState(true);
   const [createInvoice, setCreateInvoice] = useState(false);
   const [startTime] = useState(new Date());
@@ -44,16 +45,19 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
   const watchedPh = watch('ph_level');
   const watchedChlorine = watch('chlorine_level');
   const watchedAlkalinity = watch('alkalinity');
+  const watchedCalcium = watch('calcium');
+  const watchedWaterTemp = watch('water_temp');
+  const watchedTds = watch('tds');
 
   // Look up pool size from selected customer
   const selectedCustomer = customers?.find(c => c.id === watchedCustomerId);
   const poolSizeGallons = selectedCustomer?.pools?.[0]?.size_gallons ?? null;
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, category: 'before' | 'after') => {
     const files = e.target.files;
     if (!files?.length) return;
 
-    setUploading(true);
+    setUploading(category);
     const newPhotos: string[] = [];
 
     for (const file of Array.from(files)) {
@@ -70,7 +74,11 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
       newPhotos.push(publicUrl);
     }
 
-    setPhotos(prev => [...prev, ...newPhotos]);
+    if (category === 'before') {
+      setBeforePhotos(prev => [...prev, ...newPhotos]);
+    } else {
+      setAfterPhotos(prev => [...prev, ...newPhotos]);
+    }
     setUploading(false);
   };
 
@@ -81,10 +89,12 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
     const filteredChemicals = chemicalsAdded.filter(c => c.chemical && c.amount > 0 && c.unit);
     const hasEquipment = Object.keys(equipmentStatus).length > 0;
 
+    const allPhotos = [...beforePhotos, ...afterPhotos];
+
     const log = await createLog.mutateAsync({
       ...data,
       technician_id: technicianId,
-      photos,
+      photos: allPhotos,
       ...(hasEquipment ? { equipment_status: equipmentStatus } : {}),
       ...(filteredChemicals.length > 0 ? { chemicals_added: filteredChemicals } : {}),
       ...(shouldSendEmail ? { email_status: 'pending' as const } : {}),
@@ -108,7 +118,8 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
     }
 
     reset();
-    setPhotos([]);
+    setBeforePhotos([]);
+    setAfterPhotos([]);
     setSendReport(true);
     setCreateInvoice(false);
     setEquipmentStatus({});
@@ -287,8 +298,11 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
             ph_level: watchedPh || undefined,
             chlorine_level: watchedChlorine || undefined,
             alkalinity: watchedAlkalinity || undefined,
+            calcium: watchedCalcium || undefined,
           }}
           poolSizeGallons={poolSizeGallons}
+          waterTemp={watchedWaterTemp || undefined}
+          tds={watchedTds || undefined}
         />
 
         {/* Equipment Checklist */}
@@ -425,32 +439,63 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
           />
         </div>
 
-        {/* Photo Upload */}
+        {/* Photo Upload - Before & After */}
         <div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-3">
             <Camera size={14} className="text-[#64748B]" />
             <span className="text-xs font-medium text-[#64748B]">Photos</span>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            {photos.map((url, i) => (
-              <div key={i} className="w-14 h-14 rounded-lg overflow-hidden bg-[#F1F5F9]">
-                <img src={url} alt="" className="w-full h-full object-cover" />
+          <div className="grid grid-cols-2 gap-3">
+            {/* Before Photos */}
+            <div className="bg-[#FEF3C7]/30 rounded-lg p-2.5 border border-[#F59E0B]/15">
+              <span className="text-[10px] font-semibold text-[#92400E] uppercase mb-2 block">Before</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {beforePhotos.map((url, i) => (
+                  <div key={i} className="w-12 h-12 rounded-md overflow-hidden bg-[#F1F5F9]">
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+                <label className="w-12 h-12 border-2 border-dashed border-[#F59E0B]/30 rounded-md flex items-center justify-center cursor-pointer hover:border-[#F59E0B]/60 transition">
+                  {uploading === 'before' ? (
+                    <Loader2 size={12} className="animate-spin text-[#94A3B8]" />
+                  ) : (
+                    <Camera size={12} className="text-[#D97706]" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handlePhotoUpload(e, 'before')}
+                    className="sr-only"
+                  />
+                </label>
               </div>
-            ))}
-            <label className="w-14 h-14 border-2 border-dashed border-[#E2E8F0] rounded-lg flex items-center justify-center cursor-pointer hover:border-[#0066FF]/40 transition">
-              {uploading ? (
-                <Loader2 size={14} className="animate-spin text-[#94A3B8]" />
-              ) : (
-                <Camera size={14} className="text-[#94A3B8]" />
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handlePhotoUpload}
-                className="sr-only"
-              />
-            </label>
+            </div>
+            {/* After Photos */}
+            <div className="bg-[#D1FAE5]/30 rounded-lg p-2.5 border border-[#10B981]/15">
+              <span className="text-[10px] font-semibold text-[#065F46] uppercase mb-2 block">After</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {afterPhotos.map((url, i) => (
+                  <div key={i} className="w-12 h-12 rounded-md overflow-hidden bg-[#F1F5F9]">
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+                <label className="w-12 h-12 border-2 border-dashed border-[#10B981]/30 rounded-md flex items-center justify-center cursor-pointer hover:border-[#10B981]/60 transition">
+                  {uploading === 'after' ? (
+                    <Loader2 size={12} className="animate-spin text-[#94A3B8]" />
+                  ) : (
+                    <Camera size={12} className="text-[#059669]" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handlePhotoUpload(e, 'after')}
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
