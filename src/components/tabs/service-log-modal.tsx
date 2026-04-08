@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { serviceLogSchema, type ServiceLogInput } from '@/lib/validations';
 import { useCreateServiceLog, useCustomers } from '@/lib/hooks';
 import { Modal } from '@/components/ui/modal';
-import { Droplets, Beaker, Loader2, Camera, Clock, Mail } from 'lucide-react';
+import { Droplets, Beaker, Loader2, Camera, Clock, Mail, Wrench, Plus, Trash2, FlaskConical } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { InlineDosingCalculator } from '@/components/chemical-calculator';
 import toast from 'react-hot-toast';
@@ -29,6 +29,8 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
   const [sendReport, setSendReport] = useState(true);
   const [createInvoice, setCreateInvoice] = useState(false);
   const [startTime] = useState(new Date());
+  const [equipmentStatus, setEquipmentStatus] = useState<Record<string, string>>({});
+  const [chemicalsAdded, setChemicalsAdded] = useState<{ chemical: string; amount: number; unit: string }[]>([]);
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<ServiceLogInput>({
     resolver: zodResolver(serviceLogSchema),
@@ -76,10 +78,15 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
     const customerHasEmail = !!selectedCustomer?.email;
     const shouldSendEmail = sendReport && customerHasEmail;
 
+    const filteredChemicals = chemicalsAdded.filter(c => c.chemical && c.amount > 0 && c.unit);
+    const hasEquipment = Object.keys(equipmentStatus).length > 0;
+
     const log = await createLog.mutateAsync({
       ...data,
       technician_id: technicianId,
       photos,
+      ...(hasEquipment ? { equipment_status: equipmentStatus } : {}),
+      ...(filteredChemicals.length > 0 ? { chemicals_added: filteredChemicals } : {}),
       ...(shouldSendEmail ? { email_status: 'pending' as const } : {}),
     });
 
@@ -104,6 +111,8 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
     setPhotos([]);
     setSendReport(true);
     setCreateInvoice(false);
+    setEquipmentStatus({});
+    setChemicalsAdded([]);
     onClose();
   };
 
@@ -281,6 +290,129 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
           }}
           poolSizeGallons={poolSizeGallons}
         />
+
+        {/* Equipment Checklist */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Wrench size={14} className="text-[#0066FF]" />
+            <span className="text-xs font-medium text-[#64748B]">Equipment Status</span>
+          </div>
+          <div className="space-y-2">
+            {([
+              { key: 'pump', options: ['good', 'needs_attention', 'not_working', 'off'] },
+              { key: 'filter', options: ['good', 'needs_cleaning', 'needs_attention', 'not_working'] },
+              { key: 'cleaner', options: ['good', 'needs_attention', 'not_working', 'off'] },
+              { key: 'heater', options: ['good', 'needs_attention', 'not_working', 'off'] },
+            ] as const).map(({ key, options }) => {
+              const status = equipmentStatus[key];
+              const labels: Record<string, string> = {
+                good: 'Good', needs_attention: 'Attention', needs_cleaning: 'Clean', not_working: 'Down', off: 'Off',
+              };
+              const colors: Record<string, string> = {
+                good: 'bg-[#10B981] text-white', needs_attention: 'bg-[#F59E0B] text-white',
+                needs_cleaning: 'bg-[#F59E0B] text-white', not_working: 'bg-[#EF4444] text-white', off: 'bg-[#94A3B8] text-white',
+              };
+              return (
+                <div key={key} className="flex items-center justify-between bg-[#F8FAFC] rounded-lg px-3 py-2.5 border border-[#E2E8F0]">
+                  <span className="text-sm font-medium text-[#1A1A2E] capitalize">{key}</span>
+                  <div className="flex gap-1">
+                    {options.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setEquipmentStatus(prev => {
+                          if (prev[key] === s) {
+                            const next = { ...prev };
+                            delete next[key];
+                            return next;
+                          }
+                          return { ...prev, [key]: s };
+                        })}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium transition ${
+                          status === s ? colors[s] : 'bg-white border border-[#E2E8F0] text-[#64748B] hover:border-[#94A3B8]'
+                        }`}
+                      >
+                        {labels[s]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Chemicals Added */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <FlaskConical size={14} className="text-[#0066FF]" />
+              <span className="text-xs font-medium text-[#64748B]">Chemicals Added</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setChemicalsAdded(prev => [...prev, { chemical: '', amount: 0, unit: 'oz' }])}
+              className="flex items-center gap-1 text-xs font-medium text-[#0066FF] hover:text-[#0052CC] transition"
+            >
+              <Plus size={12} /> Add
+            </button>
+          </div>
+          {chemicalsAdded.length === 0 && (
+            <p className="text-xs text-[#94A3B8] italic">Tap &quot;Add&quot; to log chemicals used</p>
+          )}
+          <div className="space-y-2">
+            {chemicalsAdded.map((entry, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <select
+                  value={entry.chemical}
+                  onChange={(e) => setChemicalsAdded(prev => prev.map((c, j) => j === i ? { ...c, chemical: e.target.value } : c))}
+                  className={`${inputClass} flex-1`}
+                >
+                  <option value="">Chemical...</option>
+                  <option value="Liquid Chlorine">Liquid Chlorine</option>
+                  <option value="Chlorine Tabs">Chlorine Tabs</option>
+                  <option value="Cal-Hypo Shock">Cal-Hypo Shock</option>
+                  <option value="Dichlor Shock">Dichlor Shock</option>
+                  <option value="Muriatic Acid">Muriatic Acid</option>
+                  <option value="Soda Ash">Soda Ash</option>
+                  <option value="Baking Soda">Baking Soda</option>
+                  <option value="CYA (Stabilizer)">CYA (Stabilizer)</option>
+                  <option value="Calcium Chloride">Calcium Chloride</option>
+                  <option value="Algaecide">Algaecide</option>
+                  <option value="Phosphate Remover">Phosphate Remover</option>
+                  <option value="Clarifier">Clarifier</option>
+                  <option value="Salt">Salt</option>
+                </select>
+                <input
+                  type="number"
+                  value={entry.amount || ''}
+                  onChange={(e) => setChemicalsAdded(prev => prev.map((c, j) => j === i ? { ...c, amount: parseFloat(e.target.value) || 0 } : c))}
+                  placeholder="Amt"
+                  className={`${inputClass} w-16`}
+                />
+                <select
+                  value={entry.unit}
+                  onChange={(e) => setChemicalsAdded(prev => prev.map((c, j) => j === i ? { ...c, unit: e.target.value } : c))}
+                  className={`${inputClass} w-20`}
+                >
+                  <option value="oz">oz</option>
+                  <option value="fl oz">fl oz</option>
+                  <option value="lbs">lbs</option>
+                  <option value="gal">gal</option>
+                  <option value="tabs">tabs</option>
+                  <option value="bags">bags</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setChemicalsAdded(prev => prev.filter((_, j) => j !== i))}
+                  className="p-1.5 text-[#94A3B8] hover:text-[#EF4444] transition shrink-0"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Notes */}
         <div>

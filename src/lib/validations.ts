@@ -39,6 +39,17 @@ export const serviceLogSchema = z.object({
   filter_psi: z.number().min(0).max(100).optional().or(z.nan().transform(() => undefined)),
   water_temp: z.number().min(0).max(120).optional().or(z.nan().transform(() => undefined)),
   notes: z.string().optional(),
+  equipment_status: z.object({
+    pump: z.enum(['good', 'needs_attention', 'not_working', 'off']).optional(),
+    filter: z.enum(['good', 'needs_cleaning', 'needs_attention', 'not_working']).optional(),
+    cleaner: z.enum(['good', 'needs_attention', 'not_working', 'off']).optional(),
+    heater: z.enum(['good', 'needs_attention', 'not_working', 'off']).optional(),
+  }).optional(),
+  chemicals_added: z.array(z.object({
+    chemical: z.string(),
+    amount: z.number(),
+    unit: z.string(),
+  })).optional(),
 });
 
 export const discountSchema = z.object({
