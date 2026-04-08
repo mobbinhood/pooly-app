@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Home, Users, MapPin, Settings, Tag, LogOut, Droplets, FileText, Package, Wrench, MoreHorizontal, X, Send, CalendarDays } from 'lucide-react';
+import { Home, Users, MapPin, Settings, Tag, LogOut, Droplets, FileText, Package, Wrench, MoreHorizontal, X, Send, CalendarDays, FileDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardTab } from '@/components/tabs/dashboard-tab';
@@ -15,8 +15,9 @@ import { InventoryTab } from '@/components/tabs/inventory-tab';
 import { WorkOrdersTab } from '@/components/tabs/work-orders-tab';
 import { BroadcastTab } from '@/components/tabs/broadcast-tab';
 import { CalendarTab } from '@/components/tabs/calendar-tab';
+import { ReportsTab } from '@/components/tabs/reports-tab';
 
-type Tab = 'home' | 'customers' | 'routes' | 'discounts' | 'settings' | 'invoices' | 'inventory' | 'work-orders' | 'broadcast' | 'calendar';
+type Tab = 'home' | 'customers' | 'routes' | 'discounts' | 'settings' | 'invoices' | 'inventory' | 'work-orders' | 'broadcast' | 'calendar' | 'reports';
 
 export default function AppPage() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -94,6 +95,7 @@ export default function AppPage() {
     { id: 'work-orders' as Tab, icon: Wrench, label: 'Work Orders' },
     { id: 'inventory' as Tab, icon: Package, label: 'Inventory' },
     { id: 'broadcast' as Tab, icon: Send, label: 'Broadcast' },
+    { id: 'reports' as Tab, icon: FileDown, label: 'Reports' },
     { id: 'discounts' as Tab, icon: Tag, label: 'Discounts' },
     { id: 'settings' as Tab, icon: Settings, label: 'Settings' },
   ];
@@ -145,6 +147,7 @@ export default function AppPage() {
               {activeTab === 'work-orders' && <WorkOrdersTab orgId={orgId!} />}
               {activeTab === 'broadcast' && <BroadcastTab orgId={orgId!} />}
               {activeTab === 'calendar' && <CalendarTab orgId={orgId!} />}
+              {activeTab === 'reports' && <ReportsTab orgId={orgId!} />}
               {activeTab === 'discounts' && <DiscountsTab orgId={orgId!} />}
               {activeTab === 'settings' && <SettingsTab orgId={orgId!} onLogout={handleLogout} />}
             </motion.div>
