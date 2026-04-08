@@ -93,13 +93,26 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
               <span>{remainingStops} stop{remainingStops !== 1 ? 's' : ''} left</span>
             </div>
           </div>
-          <button
-            onClick={() => handleStopClick(nextStop)}
-            className="mt-4 w-full bg-white/15 hover:bg-white/25 text-white py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
-          >
-            <ClipboardList size={16} />
-            Complete & Log Service
-          </button>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => {
+                const addr = encodeURIComponent(nextStop.customers?.address || '');
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                window.open(isIOS ? `maps://maps.apple.com/?daddr=${addr}` : `https://www.google.com/maps/dir/?api=1&destination=${addr}`, '_blank');
+              }}
+              className="flex-1 bg-white/15 hover:bg-white/25 text-white py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
+            >
+              <Navigation size={16} />
+              Navigate
+            </button>
+            <button
+              onClick={() => handleStopClick(nextStop)}
+              className="flex-1 bg-white/15 hover:bg-white/25 text-white py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
+            >
+              <ClipboardList size={16} />
+              Complete & Log
+            </button>
+          </div>
         </motion.div>
       )}
 
@@ -233,7 +246,21 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
                     </p>
                     <p className="text-xs text-[#94A3B8] truncate">{stop.customers?.address}</p>
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    {!isCompleted && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const addr = encodeURIComponent(stop.customers?.address || '');
+                          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                          window.open(isIOS ? `maps://maps.apple.com/?daddr=${addr}` : `https://www.google.com/maps/dir/?api=1&destination=${addr}`, '_blank');
+                        }}
+                        className="p-1.5 hover:bg-[#0066FF]/5 rounded-lg text-[#94A3B8] hover:text-[#0066FF] transition"
+                        title="Navigate"
+                      >
+                        <Navigation size={14} />
+                      </button>
+                    )}
                     {isCompleted ? (
                       <span className="text-[10px] font-medium bg-[#10B981]/10 text-[#10B981] px-2 py-0.5 rounded-full">Done</span>
                     ) : (

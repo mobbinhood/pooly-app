@@ -1,17 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ArrowLeft, Check, User, MapPin, Droplets, Camera, CreditCard, Tag, Loader2, X, CheckCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, User, MapPin, Droplets, Camera, CreditCard, Tag, Loader2, X, CheckCircle, BadgePercent } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 type Step = 'customer' | 'location' | 'route' | 'pool' | 'photos' | 'billing';
 
 export default function OnboardingPage() {
+  return (
+    <Elements stripe={stripePromise} options={{ appearance: { theme: 'stripe', variables: { colorPrimary: '#0066FF', borderRadius: '8px' } } }}>
+      <OnboardingForm />
+    </Elements>
+  );
+}
+
+function OnboardingForm() {
   const router = useRouter();
   const supabase = createClient();
+  const stripe = useStripe();
+  const elements = useElements();
   const [orgId, setOrgId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<Step>('customer');
   const [submitting, setSubmitting] = useState(false);
@@ -21,6 +35,20 @@ export default function OnboardingPage() {
   const [discounts, setDiscounts] = useState<{ id: string; name: string; description: string | null; type: string; value: number }[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // Discount code state
+  const [discountCode, setDiscountCode] = useState('');
+  const [validatingCode, setValidatingCode] = useState(false);
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    id: string; name: string; type: string; value: number;
+    duration_months: number; stripe_coupon_id: string | null;
+  } | null>(null);
+  const [discountError, setDiscountError] = useState('');
+
+  // Stripe payment state
+  const [stripeReady, setStripeReady] = useState(false);
+  const [cardComplete, setCardComplete] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   const [formData, setFormData] = useState({
     customerName: '', email: '', phone: '',
@@ -96,10 +124,100 @@ export default function OnboardingPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const validateDiscountCode = useCallback(async () => {
+    if (!discountCode.trim() || !orgId) return;
+    setValidatingCode(true);
+    setDiscountError('');
+    try {
+      const res = await fetch('/api/discounts/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: discountCode.trim(), orgId }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setAppliedDiscount(data.discount);
+        updateField('discountId', data.discount.id);
+        toast.success(`Discount "${data.discount.name}" applied!`);
+      } else {
+        setDiscountError(data.error || 'Invalid discount code');
+        setAppliedDiscount(null);
+        updateField('discountId', '');
+      }
+    } catch {
+      setDiscountError('Failed to validate code');
+    } finally {
+      setValidatingCode(false);
+    }
+  }, [discountCode, orgId]);
+
+  const removeDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountCode('');
+    setDiscountError('');
+    updateField('discountId', '');
+  };
+
+  const getDiscountedPrice = () => {
+    const price = parseFloat(formData.monthlyPrice);
+    if (!price || !appliedDiscount) return price;
+    if (appliedDiscount.type === 'percentage') return price * (1 - appliedDiscount.value / 100);
+    if (appliedDiscount.type === 'fixed') return Math.max(0, price - appliedDiscount.value);
+    if (appliedDiscount.type === 'free_months') return 0; // first month free
+    return price;
+  };
+
   const handleSubmit = async () => {
     if (!orgId) return;
     setSubmitting(true);
     try {
+      // Step 1: If monthly price set, process Stripe payment
+      let stripeCustomerId: string | null = null;
+      let stripeSubscriptionId: string | null = null;
+
+      if (formData.monthlyPrice && stripe && elements) {
+        setProcessingPayment(true);
+        const cardElement = elements.getElement(CardElement);
+        if (!cardElement) throw new Error('Card element not found');
+
+        // Create setup intent
+        const setupRes = await fetch('/api/stripe/setup-intent', { method: 'POST' });
+        if (!setupRes.ok) throw new Error('Failed to create payment setup');
+        const { clientSecret } = await setupRes.json();
+
+        // Confirm card setup
+        const { error: confirmError, setupIntent } = await stripe.confirmCardSetup(clientSecret, {
+          payment_method: { card: cardElement, billing_details: { name: formData.customerName, email: formData.email || undefined } },
+        });
+        if (confirmError) throw new Error(confirmError.message);
+        if (!setupIntent?.payment_method) throw new Error('Payment method not created');
+
+        const paymentMethodId = typeof setupIntent.payment_method === 'string'
+          ? setupIntent.payment_method : setupIntent.payment_method.id;
+
+        // Create subscription
+        const subRes = await fetch('/api/stripe/create-subscription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName: formData.customerName,
+            email: formData.email || undefined,
+            paymentMethodId,
+            priceAmountCents: Math.round(parseFloat(formData.monthlyPrice) * 100),
+            stripeCouponId: appliedDiscount?.stripe_coupon_id || undefined,
+          }),
+        });
+        if (!subRes.ok) {
+          const subErr = await subRes.json();
+          throw new Error(subErr.error || 'Failed to create subscription');
+        }
+        const subData = await subRes.json();
+        stripeCustomerId = subData.stripeCustomerId;
+        stripeSubscriptionId = subData.subscriptionId;
+        setProcessingPayment(false);
+      }
+
+      // Step 2: Geocode address
       let latitude = null;
       let longitude = null;
       try {
@@ -114,6 +232,7 @@ export default function OnboardingPage() {
         }
       } catch { /* Geocoding optional */ }
 
+      // Step 3: Create customer in Supabase
       const { data: customer, error: custError } = await supabase
         .from('customers')
         .insert({
@@ -121,10 +240,12 @@ export default function OnboardingPage() {
           email: formData.email || null, phone: formData.phone || null,
           address: formData.address, city: formData.city, state: formData.state, zip: formData.zip,
           latitude, longitude,
+          stripe_customer_id: stripeCustomerId,
         })
         .select().single();
       if (custError) throw custError;
 
+      // Step 4: Create pool record
       if (formData.poolType) {
         const noteParts: string[] = [];
         if (formData.gateCode) noteParts.push(`Gate Code: ${formData.gateCode}`);
@@ -139,6 +260,7 @@ export default function OnboardingPage() {
         });
       }
 
+      // Step 5: Add to route
       if (formData.routeId) {
         const { data: existingStops } = await supabase
           .from('route_stops').select('stop_order').eq('route_id', formData.routeId)
@@ -150,9 +272,21 @@ export default function OnboardingPage() {
         });
       }
 
+      // Step 6: Save subscription record
+      if (stripeSubscriptionId && formData.monthlyPrice) {
+        await supabase.from('subscriptions').insert({
+          customer_id: customer.id,
+          stripe_subscription_id: stripeSubscriptionId,
+          price_cents: Math.round(parseFloat(formData.monthlyPrice) * 100),
+          discount_id: appliedDiscount?.id || null,
+          status: 'active',
+        });
+      }
+
       setSuccess(true);
       toast.success('Customer onboarded successfully!');
     } catch (err) {
+      setProcessingPayment(false);
       toast.error(err instanceof Error ? err.message : 'Failed to create customer');
     } finally {
       setSubmitting(false);
@@ -175,7 +309,8 @@ export default function OnboardingPage() {
               onClick={() => {
                 setSuccess(false); setCurrentStep('customer');
                 setFormData({ customerName: '', email: '', phone: '', address: '', city: '', state: '', zip: '', gateCode: '', accessNotes: '', routeId: '', timeWindow: '', poolType: 'inground', poolSize: '', surfaceType: '', equipmentNotes: '', monthlyPrice: '', discountId: '' });
-                setPhotos([]);
+                setPhotos([]); setAppliedDiscount(null); setDiscountCode(''); setDiscountError('');
+                setCardComplete(false); setStripeReady(false);
               }}
               className="flex-1 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#1A1A2E] hover:bg-[#F8FAFC] transition text-sm"
             >
@@ -446,6 +581,7 @@ export default function OnboardingPage() {
 
             {currentStep === 'billing' && (
               <div className="space-y-4">
+                {/* Monthly Price */}
                 <div className="bg-white rounded-xl p-5 border border-[#E2E8F0] space-y-4">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-9 h-9 bg-[#10B981]/8 rounded-lg flex items-center justify-center">
@@ -465,35 +601,95 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                {discounts.length > 0 && (
-                  <div className="bg-white rounded-xl p-5 border border-[#E2E8F0] space-y-3">
+                {/* Card Entry */}
+                {formData.monthlyPrice && (
+                  <div className="bg-white rounded-xl p-5 border border-[#E2E8F0] space-y-4">
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-9 h-9 bg-[#F59E0B]/8 rounded-lg flex items-center justify-center">
-                        <Tag size={16} className="text-[#F59E0B]" />
+                      <div className="w-9 h-9 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+                        <CreditCard size={16} className="text-[#0066FF]" />
                       </div>
                       <div>
-                        <h2 className="font-semibold text-[#1A1A2E] text-sm">Apply Discount</h2>
-                        <p className="text-xs text-[#94A3B8]">Optional promotional discount</p>
+                        <h2 className="font-semibold text-[#1A1A2E] text-sm">Payment Method</h2>
+                        <p className="text-xs text-[#94A3B8]">Customer&apos;s card for monthly billing</p>
                       </div>
                     </div>
-                    <label className={`flex items-center p-3.5 border-2 rounded-lg cursor-pointer transition ${formData.discountId === '' ? 'border-[#0066FF] bg-[#0066FF]/5' : 'border-[#E2E8F0] hover:border-[#CBD5E1]'}`}>
-                      <input type="radio" name="discount" value="" checked={formData.discountId === ''} onChange={() => updateField('discountId', '')} className="sr-only" />
-                      <p className="font-medium text-[#1A1A2E] text-sm">No Discount</p>
-                    </label>
-                    {discounts.map((discount) => (
-                      <label key={discount.id} className={`flex items-center p-3.5 border-2 rounded-lg cursor-pointer transition ${formData.discountId === discount.id ? 'border-[#0066FF] bg-[#0066FF]/5' : 'border-[#E2E8F0] hover:border-[#CBD5E1]'}`}>
-                        <input type="radio" name="discount" value={discount.id} checked={formData.discountId === discount.id} onChange={() => updateField('discountId', discount.id)} className="sr-only" />
-                        <div className="flex-1">
-                          <p className="font-medium text-[#1A1A2E] text-sm">{discount.name}</p>
-                          {discount.description && <p className="text-xs text-[#94A3B8]">{discount.description}</p>}
-                        </div>
-                        <span className="text-sm font-medium text-[#0066FF]">
-                          {discount.type === 'percentage' ? `${discount.value}% off` : discount.type === 'fixed' ? `$${discount.value} off` : `${discount.value}mo free`}
-                        </span>
-                      </label>
-                    ))}
+                    <div className="p-3.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
+                      <CardElement
+                        options={{
+                          style: {
+                            base: {
+                              fontSize: '14px',
+                              color: '#1A1A2E',
+                              fontFamily: 'system-ui, -apple-system, sans-serif',
+                              '::placeholder': { color: '#94A3B8' },
+                            },
+                            invalid: { color: '#EF4444' },
+                          },
+                        }}
+                        onChange={(e) => {
+                          setCardComplete(e.complete);
+                          setStripeReady(e.complete && !e.error);
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-[#94A3B8]">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      Secured by Stripe. Card info never touches our servers.
+                    </div>
                   </div>
                 )}
+
+                {/* Discount Code */}
+                <div className="bg-white rounded-xl p-5 border border-[#E2E8F0] space-y-3">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 bg-[#F59E0B]/8 rounded-lg flex items-center justify-center">
+                      <Tag size={16} className="text-[#F59E0B]" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold text-[#1A1A2E] text-sm">Discount Code</h2>
+                      <p className="text-xs text-[#94A3B8]">Enter a promo code if available</p>
+                    </div>
+                  </div>
+
+                  {appliedDiscount ? (
+                    <div className="flex items-center justify-between p-3.5 bg-[#10B981]/5 border-2 border-[#10B981]/30 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <BadgePercent size={16} className="text-[#10B981]" />
+                        <div>
+                          <p className="text-sm font-medium text-[#1A1A2E]">{appliedDiscount.name}</p>
+                          <p className="text-xs text-[#10B981]">
+                            {appliedDiscount.type === 'percentage' ? `${appliedDiscount.value}% off` :
+                             appliedDiscount.type === 'fixed' ? `$${appliedDiscount.value} off` :
+                             `${appliedDiscount.value} month(s) free`}
+                            {appliedDiscount.duration_months > 0 && appliedDiscount.type !== 'free_months' && ` for ${appliedDiscount.duration_months}mo`}
+                          </p>
+                        </div>
+                      </div>
+                      <button onClick={removeDiscount} className="p-1.5 hover:bg-[#10B981]/10 rounded-lg transition">
+                        <X size={14} className="text-[#10B981]" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Enter discount code"
+                        value={discountCode}
+                        onChange={(e) => { setDiscountCode(e.target.value.toUpperCase()); setDiscountError(''); }}
+                        onKeyDown={(e) => e.key === 'Enter' && validateDiscountCode()}
+                        className={`${inputClass} flex-1 uppercase`}
+                      />
+                      <button
+                        onClick={validateDiscountCode}
+                        disabled={!discountCode.trim() || validatingCode}
+                        className="px-4 py-2.5 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                      >
+                        {validatingCode ? <Loader2 size={14} className="animate-spin" /> : 'Apply'}
+                      </button>
+                    </div>
+                  )}
+                  {discountError && <p className="text-xs text-[#EF4444]">{discountError}</p>}
+                </div>
 
                 {/* Summary */}
                 <div className="bg-white rounded-xl p-5 border border-[#E2E8F0]">
@@ -503,10 +699,32 @@ export default function OnboardingPage() {
                     <div className="flex justify-between"><span className="text-[#64748B]">Location</span><span className="font-medium text-[#1A1A2E] text-right max-w-[60%] truncate">{formData.address ? `${formData.address}, ${formData.city}` : '—'}</span></div>
                     <div className="flex justify-between"><span className="text-[#64748B]">Pool</span><span className="font-medium text-[#1A1A2E] capitalize">{formData.poolType.replace('_', ' ') || '—'}</span></div>
                     {formData.monthlyPrice && (
-                      <div className="flex justify-between pt-2 border-t border-[#F1F5F9]">
-                        <span className="font-medium text-[#1A1A2E]">Monthly Total</span>
-                        <span className="font-bold text-[#0066FF]">${formData.monthlyPrice}/mo</span>
-                      </div>
+                      <>
+                        <div className="flex justify-between pt-2 border-t border-[#F1F5F9]">
+                          <span className="text-[#64748B]">Monthly Rate</span>
+                          <span className="font-medium text-[#1A1A2E]">${formData.monthlyPrice}/mo</span>
+                        </div>
+                        {appliedDiscount && (
+                          <div className="flex justify-between text-[#10B981]">
+                            <span>Discount ({appliedDiscount.name})</span>
+                            <span className="font-medium">
+                              {appliedDiscount.type === 'percentage' ? `-${appliedDiscount.value}%` :
+                               appliedDiscount.type === 'fixed' ? `-$${appliedDiscount.value}` :
+                               `${appliedDiscount.value}mo free`}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between pt-2 border-t border-[#F1F5F9]">
+                          <span className="font-semibold text-[#1A1A2E]">
+                            {appliedDiscount?.type === 'free_months' ? 'After free period' : 'Total Due'}
+                          </span>
+                          <span className="font-bold text-[#0066FF]">
+                            ${appliedDiscount && appliedDiscount.type !== 'free_months'
+                              ? getDiscountedPrice().toFixed(2)
+                              : formData.monthlyPrice}/mo
+                          </span>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -531,9 +749,13 @@ export default function OnboardingPage() {
               <ArrowRight size={16} />
             </button>
           ) : (
-            <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#10B981] text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-emerald-600 transition disabled:opacity-50">
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || (!!formData.monthlyPrice && !cardComplete)}
+              className="flex-1 py-2.5 px-4 bg-[#10B981] text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-emerald-600 transition disabled:opacity-50"
+            >
               {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-              {submitting ? 'Creating...' : 'Complete Signup'}
+              {processingPayment ? 'Processing Payment...' : submitting ? 'Creating...' : formData.monthlyPrice ? 'Complete & Start Billing' : 'Complete Signup'}
             </button>
           )}
         </div>

@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { serviceLogSchema, type ServiceLogInput } from '@/lib/validations';
 import { useCreateServiceLog, useCustomers } from '@/lib/hooks';
 import { Modal } from '@/components/ui/modal';
-import { Droplets, Beaker, Loader2, Camera, Clock } from 'lucide-react';
+import { Droplets, Beaker, Loader2, Camera, Clock, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { InlineDosingCalculator } from '@/components/chemical-calculator';
 import toast from 'react-hot-toast';
@@ -17,14 +17,17 @@ interface ServiceLogModalProps {
   orgId: string;
   technicianId: string;
   preselectedCustomerId?: string;
+  onInvoiceRequest?: (customerId: string, serviceLogId: string) => void;
 }
 
-export function ServiceLogModal({ open, onClose, orgId, technicianId, preselectedCustomerId }: ServiceLogModalProps) {
+export function ServiceLogModal({ open, onClose, orgId, technicianId, preselectedCustomerId, onInvoiceRequest }: ServiceLogModalProps) {
   const { data: customers } = useCustomers(orgId);
   const createLog = useCreateServiceLog();
   const supabase = createClient();
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [sendReport, setSendReport] = useState(true);
+  const [createInvoice, setCreateInvoice] = useState(false);
   const [startTime] = useState(new Date());
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<ServiceLogInput>({
@@ -70,13 +73,37 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
   };
 
   const onSubmit = async (data: ServiceLogInput) => {
-    await createLog.mutateAsync({
+    const customerHasEmail = !!selectedCustomer?.email;
+    const shouldSendEmail = sendReport && customerHasEmail;
+
+    const log = await createLog.mutateAsync({
       ...data,
       technician_id: technicianId,
       photos,
+      ...(shouldSendEmail ? { email_status: 'pending' as const } : {}),
     });
+
+    // Fire-and-forget email send
+    if (shouldSendEmail && log?.id) {
+      fetch('/api/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service_log_id: log.id }),
+      }).then(res => {
+        if (res.ok) toast.success('Service report emailed to customer');
+        else toast.error('Failed to send report email');
+      }).catch(() => toast.error('Failed to send report email'));
+    }
+
+    // Trigger invoice creation if requested
+    if (createInvoice && log?.id && onInvoiceRequest) {
+      onInvoiceRequest(data.customer_id, log.id);
+    }
+
     reset();
     setPhotos([]);
+    setSendReport(true);
+    setCreateInvoice(false);
     onClose();
   };
 
@@ -211,6 +238,27 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
             </label>
           </div>
         </div>
+
+        {/* Send Report Toggle */}
+        <label className="flex items-center gap-3 p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] cursor-pointer select-none">
+          <div className="relative">
+            <input
+              type="checkbox"
+              checked={sendReport}
+              onChange={(e) => setSendReport(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-[#CBD5E1] rounded-full peer-checked:bg-[#0066FF] transition" />
+            <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm peer-checked:translate-x-4 transition" />
+          </div>
+          <div className="flex items-center gap-2 flex-1">
+            <Mail size={14} className="text-[#64748B]" />
+            <span className="text-sm text-[#475569] font-medium">Email report to customer</span>
+          </div>
+          {selectedCustomer && !selectedCustomer.email && (
+            <span className="text-[10px] text-[#F59E0B] font-medium">No email on file</span>
+          )}
+        </label>
 
         {/* Submit */}
         <button

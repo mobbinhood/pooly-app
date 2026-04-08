@@ -231,6 +231,8 @@ export type Database = {
           time_on_site_minutes: number | null;
           notes: string | null;
           photos: string[];
+          email_status: 'pending' | 'sent' | 'failed' | null;
+          email_sent_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -252,6 +254,8 @@ export type Database = {
           time_on_site_minutes?: number | null;
           notes?: string | null;
           photos?: string[];
+          email_status?: 'pending' | 'sent' | 'failed' | null;
+          email_sent_at?: string | null;
         };
         Update: {
           chlorine_level?: number | null;
@@ -268,6 +272,8 @@ export type Database = {
           time_on_site_minutes?: number | null;
           notes?: string | null;
           photos?: string[];
+          email_status?: 'pending' | 'sent' | 'failed' | null;
+          email_sent_at?: string | null;
         };
       };
       discounts: {
@@ -332,6 +338,178 @@ export type Database = {
           price_cents?: number;
           discount_id?: string | null;
           status?: string;
+        };
+      };
+      chemical_inventory: {
+        Row: {
+          id: string;
+          organization_id: string;
+          chemical_name: string;
+          unit: string;
+          quantity_on_hand: number;
+          reorder_threshold: number | null;
+          last_restocked_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          chemical_name: string;
+          unit?: string;
+          quantity_on_hand?: number;
+          reorder_threshold?: number | null;
+          last_restocked_at?: string | null;
+        };
+        Update: {
+          chemical_name?: string;
+          unit?: string;
+          quantity_on_hand?: number;
+          reorder_threshold?: number | null;
+          last_restocked_at?: string | null;
+        };
+      };
+      work_orders: {
+        Row: {
+          id: string;
+          organization_id: string;
+          customer_id: string;
+          assigned_to: string | null;
+          title: string;
+          description: string | null;
+          priority: 'low' | 'normal' | 'high' | 'urgent';
+          status: 'open' | 'in_progress' | 'completed' | 'cancelled';
+          estimated_cost_cents: number | null;
+          actual_cost_cents: number | null;
+          scheduled_date: string | null;
+          completed_date: string | null;
+          photos: string[];
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          customer_id: string;
+          assigned_to?: string | null;
+          title: string;
+          description?: string | null;
+          priority?: 'low' | 'normal' | 'high' | 'urgent';
+          status?: 'open' | 'in_progress' | 'completed' | 'cancelled';
+          estimated_cost_cents?: number | null;
+          actual_cost_cents?: number | null;
+          scheduled_date?: string | null;
+          completed_date?: string | null;
+          photos?: string[];
+          notes?: string | null;
+        };
+        Update: {
+          title?: string;
+          description?: string | null;
+          assigned_to?: string | null;
+          priority?: 'low' | 'normal' | 'high' | 'urgent';
+          status?: 'open' | 'in_progress' | 'completed' | 'cancelled';
+          estimated_cost_cents?: number | null;
+          actual_cost_cents?: number | null;
+          scheduled_date?: string | null;
+          completed_date?: string | null;
+          photos?: string[];
+          notes?: string | null;
+        };
+      };
+      notification_log: {
+        Row: {
+          id: string;
+          organization_id: string;
+          customer_id: string | null;
+          type: 'sms' | 'email';
+          recipient: string;
+          subject: string | null;
+          body: string;
+          status: 'sent' | 'failed' | 'pending';
+          service_log_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          customer_id?: string | null;
+          type: 'sms' | 'email';
+          recipient: string;
+          subject?: string | null;
+          body: string;
+          status?: 'sent' | 'failed' | 'pending';
+          service_log_id?: string | null;
+        };
+        Update: {
+          status?: 'sent' | 'failed' | 'pending';
+        };
+      };
+      invoices: {
+        Row: {
+          id: string;
+          organization_id: string;
+          customer_id: string;
+          service_log_id: string | null;
+          invoice_number: string;
+          status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+          issued_date: string;
+          due_date: string;
+          subtotal_cents: number;
+          tax_cents: number;
+          total_cents: number;
+          notes: string | null;
+          paid_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          customer_id: string;
+          service_log_id?: string | null;
+          invoice_number: string;
+          status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+          issued_date?: string;
+          due_date?: string;
+          subtotal_cents?: number;
+          tax_cents?: number;
+          total_cents?: number;
+          notes?: string | null;
+          paid_at?: string | null;
+        };
+        Update: {
+          status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+          issued_date?: string;
+          due_date?: string;
+          subtotal_cents?: number;
+          tax_cents?: number;
+          total_cents?: number;
+          notes?: string | null;
+          paid_at?: string | null;
+        };
+      };
+      invoice_items: {
+        Row: {
+          id: string;
+          invoice_id: string;
+          description: string;
+          quantity: number;
+          unit_price_cents: number;
+          total_cents: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          invoice_id: string;
+          description: string;
+          quantity?: number;
+          unit_price_cents?: number;
+          total_cents?: number;
+        };
+        Update: {
+          description?: string;
+          quantity?: number;
+          unit_price_cents?: number;
+          total_cents?: number;
         };
       };
     };

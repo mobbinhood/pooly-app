@@ -48,9 +48,45 @@ export const routeSchema = z.object({
   technician_id: z.string().optional(),
 });
 
+export const workOrderSchema = z.object({
+  customer_id: z.string().min(1, 'Select a customer').uuid('Select a customer'),
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().optional(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']),
+  assigned_to: z.string().optional(),
+  scheduled_date: z.string().optional(),
+  estimated_cost_cents: z.number().optional().or(z.nan().transform(() => undefined)),
+  notes: z.string().optional(),
+});
+
+export const inventoryItemSchema = z.object({
+  chemical_name: z.string().min(1, 'Name is required'),
+  unit: z.string().min(1, 'Unit is required'),
+  quantity_on_hand: z.number().min(0, 'Quantity must be 0 or more'),
+  reorder_threshold: z.number().min(0).optional().or(z.nan().transform(() => undefined)),
+});
+
+export const invoiceItemSchema = z.object({
+  description: z.string().min(1, 'Description is required'),
+  quantity: z.number().min(1, 'Quantity must be at least 1'),
+  unit_price_cents: z.number().min(0, 'Price must be 0 or more'),
+});
+
+export const invoiceSchema = z.object({
+  customer_id: z.string().min(1, 'Select a customer').uuid('Select a customer'),
+  issued_date: z.string().min(1, 'Issue date is required'),
+  due_date: z.string().min(1, 'Due date is required'),
+  notes: z.string().optional(),
+  items: z.array(invoiceItemSchema).min(1, 'Add at least one line item'),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SignupInput = z.infer<typeof signupSchema>;
 export type CustomerInput = z.infer<typeof customerSchema>;
 export type ServiceLogInput = z.infer<typeof serviceLogSchema>;
 export type DiscountInput = z.infer<typeof discountSchema>;
 export type RouteInput = z.infer<typeof routeSchema>;
+export type WorkOrderInput = z.infer<typeof workOrderSchema>;
+export type InventoryItemInput = z.infer<typeof inventoryItemSchema>;
+export type InvoiceItemInput = z.infer<typeof invoiceItemSchema>;
+export type InvoiceInput = z.infer<typeof invoiceSchema>;

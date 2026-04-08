@@ -11,6 +11,8 @@ type RouteStop = Database['public']['Tables']['route_stops']['Row'];
 type ServiceLog = Database['public']['Tables']['service_logs']['Row'];
 type Discount = Database['public']['Tables']['discounts']['Row'];
 type User = Database['public']['Tables']['users']['Row'];
+type Invoice = Database['public']['Tables']['invoices']['Row'];
+type InvoiceItem = Database['public']['Tables']['invoice_items']['Row'];
 
 const supabase = createClient();
 
@@ -527,6 +529,298 @@ export function useRevenueData(orgId?: string) {
         monthlyData,
         totalCustomers: perCustomer.length,
       };
+    },
+    enabled: !!orgId,
+  });
+}
+
+// Chemical Inventory
+export function useChemicalInventory(orgId?: string) {
+  return useQuery({
+    queryKey: ['chemical_inventory', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from('chemical_inventory')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('chemical_name');
+      if (error) throw error;
+      return data as Database['public']['Tables']['chemical_inventory']['Row'][];
+    },
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateInventoryItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Database['public']['Tables']['chemical_inventory']['Insert']) => {
+      const { data, error } = await supabase.from('chemical_inventory').insert(input).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['chemical_inventory'] });
+      toast.success('Chemical added to inventory');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateInventoryItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: Database['public']['Tables']['chemical_inventory']['Update'] & { id: string }) => {
+      const { data, error } = await supabase.from('chemical_inventory').update(input).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['chemical_inventory'] });
+      toast.success('Inventory updated');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteInventoryItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('chemical_inventory').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['chemical_inventory'] });
+      toast.success('Chemical removed');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeductInventory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount }: { id: string; amount: number }) => {
+      // Get current quantity
+      const { data: current, error: fetchError } = await supabase
+        .from('chemical_inventory')
+        .select('quantity_on_hand')
+        .eq('id', id)
+        .single();
+      if (fetchError) throw fetchError;
+      const newQty = Math.max(0, (current?.quantity_on_hand ?? 0) - amount);
+      const { error } = await supabase.from('chemical_inventory').update({ quantity_on_hand: newQty }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['chemical_inventory'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// Work Orders
+export function useWorkOrders(orgId?: string) {
+  return useQuery({
+    queryKey: ['work_orders', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from('work_orders')
+        .select('*, customers(name, address), users:assigned_to(name)')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as (Database['public']['Tables']['work_orders']['Row'] & {
+        customers: Pick<Customer, 'name' | 'address'>;
+        users: Pick<User, 'name'> | null;
+      })[];
+    },
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Database['public']['Tables']['work_orders']['Insert']) => {
+      const { data, error } = await supabase.from('work_orders').insert(input).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['work_orders'] });
+      toast.success('Work order created');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: Database['public']['Tables']['work_orders']['Update'] & { id: string }) => {
+      const { data, error } = await supabase.from('work_orders').update(input).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['work_orders'] });
+      toast.success('Work order updated');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('work_orders').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['work_orders'] });
+      toast.success('Work order deleted');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// Invoices
+export function useInvoices(orgId?: string, customerId?: string) {
+  return useQuery({
+    queryKey: ['invoices', orgId, customerId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      let query = supabase
+        .from('invoices')
+        .select('*, customers(name, email), invoice_items(*)')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false });
+      if (customerId) query = query.eq('customer_id', customerId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as (Invoice & {
+        customers: Pick<Customer, 'name' | 'email'>;
+        invoice_items: InvoiceItem[];
+      })[];
+    },
+    enabled: !!orgId,
+  });
+}
+
+export function useInvoice(id: string) {
+  return useQuery({
+    queryKey: ['invoice', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*, customers(name, email, address, city, state, zip), invoice_items(*)')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data as Invoice & {
+        customers: Pick<Customer, 'name' | 'email' | 'address' | 'city' | 'state' | 'zip'>;
+        invoice_items: InvoiceItem[];
+      };
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      invoice: Database['public']['Tables']['invoices']['Insert'];
+      items: Database['public']['Tables']['invoice_items']['Insert'][];
+    }) => {
+      const { data: invoice, error: invError } = await supabase
+        .from('invoices')
+        .insert(input.invoice)
+        .select()
+        .single();
+      if (invError) throw invError;
+
+      if (input.items.length > 0) {
+        const itemsWithInvoice = input.items.map(item => ({
+          ...item,
+          invoice_id: invoice.id,
+        }));
+        const { error: itemsError } = await supabase
+          .from('invoice_items')
+          .insert(itemsWithInvoice);
+        if (itemsError) throw itemsError;
+      }
+
+      return invoice;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success('Invoice created');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateInvoiceStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status, paid_at }: { id: string; status: string; paid_at?: string | null }) => {
+      const update: Record<string, unknown> = { status };
+      if (paid_at !== undefined) update.paid_at = paid_at;
+      const { data, error } = await supabase
+        .from('invoices')
+        .update(update)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['invoice'] });
+      toast.success('Invoice updated');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('invoices').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success('Invoice deleted');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useNextInvoiceNumber(orgId?: string) {
+  return useQuery({
+    queryKey: ['next-invoice-number', orgId],
+    queryFn: async () => {
+      if (!orgId) return 'INV-0001';
+      const { data } = await supabase
+        .from('invoices')
+        .select('invoice_number')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) {
+        const lastNum = parseInt(data[0].invoice_number.replace(/\D/g, ''), 10) || 0;
+        return `INV-${String(lastNum + 1).padStart(4, '0')}`;
+      }
+      return 'INV-0001';
     },
     enabled: !!orgId,
   });
