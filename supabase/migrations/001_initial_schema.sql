@@ -1,9 +1,6 @@
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- Organizations (multi-tenant)
 CREATE TABLE organizations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   stripe_account_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -11,7 +8,7 @@ CREATE TABLE organizations (
 
 -- Users
 CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   role TEXT CHECK (role IN ('admin', 'technician')) NOT NULL,
@@ -21,7 +18,7 @@ CREATE TABLE users (
 
 -- Customers
 CREATE TABLE customers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   email TEXT,
@@ -38,7 +35,7 @@ CREATE TABLE customers (
 
 -- Pools
 CREATE TABLE pools (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
   size_gallons INTEGER,
@@ -50,7 +47,7 @@ CREATE TABLE pools (
 
 -- Routes
 CREATE TABLE routes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   technician_id UUID REFERENCES users(id),
@@ -60,7 +57,7 @@ CREATE TABLE routes (
 
 -- Route Stops
 CREATE TABLE route_stops (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   route_id UUID REFERENCES routes(id) ON DELETE CASCADE,
   customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
   stop_order INTEGER NOT NULL,
@@ -70,7 +67,7 @@ CREATE TABLE route_stops (
 
 -- Service Logs
 CREATE TABLE service_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
   technician_id UUID REFERENCES users(id),
   service_date DATE NOT NULL,
@@ -84,7 +81,7 @@ CREATE TABLE service_logs (
 
 -- Discounts
 CREATE TABLE discounts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -98,7 +95,7 @@ CREATE TABLE discounts (
 
 -- Subscriptions
 CREATE TABLE subscriptions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
   stripe_subscription_id TEXT NOT NULL,
   price_cents INTEGER NOT NULL,
