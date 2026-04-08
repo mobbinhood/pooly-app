@@ -5,6 +5,20 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+export type ChemicalAdded = {
+  chemical: string;
+  amount: number;
+  unit: string;
+};
+
+export type EquipmentStatus = {
+  pump?: 'good' | 'needs_attention' | 'not_working' | 'off';
+  filter?: 'good' | 'needs_cleaning' | 'needs_attention' | 'not_working';
+  cleaner?: 'good' | 'needs_attention' | 'not_working' | 'off';
+  heater?: 'good' | 'needs_attention' | 'not_working' | 'off';
+  salt_system?: 'good' | 'needs_attention' | 'not_working' | 'off';
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -61,6 +75,9 @@ export type Database = {
           latitude: number | null;
           longitude: number | null;
           stripe_customer_id: string | null;
+          gate_code: string | null;
+          access_notes: string | null;
+          parking_info: string | null;
           created_at: string;
         };
         Insert: {
@@ -76,6 +93,9 @@ export type Database = {
           latitude?: number | null;
           longitude?: number | null;
           stripe_customer_id?: string | null;
+          gate_code?: string | null;
+          access_notes?: string | null;
+          parking_info?: string | null;
         };
         Update: {
           name?: string;
@@ -88,6 +108,9 @@ export type Database = {
           latitude?: number | null;
           longitude?: number | null;
           stripe_customer_id?: string | null;
+          gate_code?: string | null;
+          access_notes?: string | null;
+          parking_info?: string | null;
         };
       };
       pools: {
@@ -99,6 +122,15 @@ export type Database = {
           surface_type: string | null;
           equipment_notes: string | null;
           photos: string[];
+          has_pump: boolean;
+          has_filter: boolean;
+          filter_type: string | null;
+          has_heater: boolean;
+          heater_type: string | null;
+          has_cleaner: boolean;
+          cleaner_type: string | null;
+          has_salt_system: boolean;
+          salt_system_model: string | null;
           created_at: string;
         };
         Insert: {
@@ -109,6 +141,15 @@ export type Database = {
           surface_type?: string | null;
           equipment_notes?: string | null;
           photos?: string[];
+          has_pump?: boolean;
+          has_filter?: boolean;
+          filter_type?: string | null;
+          has_heater?: boolean;
+          heater_type?: string | null;
+          has_cleaner?: boolean;
+          cleaner_type?: string | null;
+          has_salt_system?: boolean;
+          salt_system_model?: string | null;
         };
         Update: {
           type?: string;
@@ -116,6 +157,15 @@ export type Database = {
           surface_type?: string | null;
           equipment_notes?: string | null;
           photos?: string[];
+          has_pump?: boolean;
+          has_filter?: boolean;
+          filter_type?: string | null;
+          has_heater?: boolean;
+          heater_type?: string | null;
+          has_cleaner?: boolean;
+          cleaner_type?: string | null;
+          has_salt_system?: boolean;
+          salt_system_model?: string | null;
         };
       };
       routes: {
@@ -170,6 +220,15 @@ export type Database = {
           chlorine_level: number | null;
           ph_level: number | null;
           alkalinity: number | null;
+          combined_chlorine: number | null;
+          cya: number | null;
+          calcium: number | null;
+          tds: number | null;
+          salt_level: number | null;
+          water_temp: number | null;
+          chemicals_added: ChemicalAdded[];
+          equipment_status: EquipmentStatus;
+          time_on_site_minutes: number | null;
           notes: string | null;
           photos: string[];
           created_at: string;
@@ -182,6 +241,15 @@ export type Database = {
           chlorine_level?: number | null;
           ph_level?: number | null;
           alkalinity?: number | null;
+          combined_chlorine?: number | null;
+          cya?: number | null;
+          calcium?: number | null;
+          tds?: number | null;
+          salt_level?: number | null;
+          water_temp?: number | null;
+          chemicals_added?: ChemicalAdded[];
+          equipment_status?: EquipmentStatus;
+          time_on_site_minutes?: number | null;
           notes?: string | null;
           photos?: string[];
         };
@@ -189,6 +257,15 @@ export type Database = {
           chlorine_level?: number | null;
           ph_level?: number | null;
           alkalinity?: number | null;
+          combined_chlorine?: number | null;
+          cya?: number | null;
+          calcium?: number | null;
+          tds?: number | null;
+          salt_level?: number | null;
+          water_temp?: number | null;
+          chemicals_added?: ChemicalAdded[];
+          equipment_status?: EquipmentStatus;
+          time_on_site_minutes?: number | null;
           notes?: string | null;
           photos?: string[];
         };
@@ -204,6 +281,8 @@ export type Database = {
           duration_months: number;
           stripe_coupon_id: string | null;
           active: boolean;
+          code: string | null;
+          expires_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -216,6 +295,8 @@ export type Database = {
           duration_months: number;
           stripe_coupon_id?: string | null;
           active?: boolean;
+          code?: string | null;
+          expires_at?: string | null;
         };
         Update: {
           name?: string;
@@ -225,6 +306,8 @@ export type Database = {
           duration_months?: number;
           stripe_coupon_id?: string | null;
           active?: boolean;
+          code?: string | null;
+          expires_at?: string | null;
         };
       };
       subscriptions: {

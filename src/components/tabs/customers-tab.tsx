@@ -9,9 +9,10 @@ import { Modal } from '@/components/ui/modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Users, Phone, Mail, MapPin, Edit2, Trash2, ChevronRight, X, Loader2, Droplets, Beaker, Clock, Calendar } from 'lucide-react';
+import { Plus, Search, Users, Phone, Mail, MapPin, Edit2, Trash2, ChevronRight, X, Loader2, Droplets, Beaker, Calendar, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
+import Link from 'next/link';
 import type { Database } from '@/lib/supabase';
 
 type Customer = Database['public']['Tables']['customers']['Row'];
@@ -47,29 +48,38 @@ export function CustomersTab({ orgId }: { orgId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Customers</h2>
-        <button
-          onClick={openCreate}
-          className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-medium hover:bg-blue-700 transition shadow-sm shadow-blue-600/20"
-        >
-          <Plus size={16} />
-          Add New
-        </button>
+        <h2 className="text-xl font-bold text-[#1A1A2E]">Customers</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openCreate}
+            className="border border-[#E2E8F0] text-[#1A1A2E] px-3 py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium hover:bg-[#F8FAFC] transition"
+          >
+            <Plus size={14} />
+            Quick Add
+          </button>
+          <Link
+            href="/onboarding"
+            className="bg-[#0066FF] text-white px-3 py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium hover:bg-[#0052CC] transition"
+          >
+            <UserPlus size={14} />
+            Full Onboard
+          </Link>
+        </div>
       </div>
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
         <input
           type="text"
           placeholder="Search customers..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm"
+          className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-[#1A1A2E] text-sm placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition"
         />
         {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            <X size={16} />
+          <button onClick={() => setSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#64748B]">
+            <X size={14} />
           </button>
         )}
       </div>
@@ -85,7 +95,7 @@ export function CustomersTab({ orgId }: { orgId: string }) {
           action={!search ? { label: 'Add Customer', onClick: openCreate } : undefined}
         />
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
           <AnimatePresence>
             {filtered.map((customer, i) => (
               <motion.div
@@ -93,23 +103,23 @@ export function CustomersTab({ orgId }: { orgId: string }) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.03 }}
-                className="border-b border-gray-50 last:border-0"
+                className="border-b border-[#F1F5F9] last:border-0"
               >
                 <div
                   onClick={() => setSelectedCustomer(customer)}
-                  className="px-4 py-3.5 flex items-center gap-3 hover:bg-gray-50/50 transition cursor-pointer"
+                  className="px-4 py-3.5 flex items-center gap-3 hover:bg-[#F8FAFC] transition cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#0066FF]/8 text-[#0066FF] flex items-center justify-center font-semibold text-sm shrink-0">
                     {customer.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{customer.name}</p>
-                    <p className="text-xs text-gray-500 truncate flex items-center gap-1">
+                    <p className="font-medium text-[#1A1A2E] text-sm truncate">{customer.name}</p>
+                    <p className="text-xs text-[#94A3B8] truncate flex items-center gap-1">
                       <MapPin size={10} />
                       {customer.address}, {customer.city}
                     </p>
                   </div>
-                  <ChevronRight size={16} className="text-gray-300 shrink-0" />
+                  <ChevronRight size={14} className="text-[#CBD5E1] shrink-0" />
                 </div>
               </motion.div>
             ))}
@@ -117,7 +127,6 @@ export function CustomersTab({ orgId }: { orgId: string }) {
         </div>
       )}
 
-      {/* Customer Form Modal */}
       <CustomerFormModal
         open={showForm}
         onClose={() => { setShowForm(false); setEditingCustomer(null); }}
@@ -128,7 +137,6 @@ export function CustomersTab({ orgId }: { orgId: string }) {
         isSubmitting={createCustomer.isPending || updateCustomer.isPending}
       />
 
-      {/* Customer Detail Sheet */}
       <CustomerDetailSheet
         customer={selectedCustomer}
         onClose={() => setSelectedCustomer(null)}
@@ -136,7 +144,6 @@ export function CustomersTab({ orgId }: { orgId: string }) {
         onDelete={(c) => { setSelectedCustomer(null); setDeleteTarget(c); }}
       />
 
-      {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -148,7 +155,6 @@ export function CustomersTab({ orgId }: { orgId: string }) {
   );
 }
 
-// Customer Form Modal
 function CustomerFormModal({
   open, onClose, customer, orgId, onCreate, onUpdate, isSubmitting,
 }: {
@@ -183,57 +189,59 @@ function CustomerFormModal({
     onClose();
   };
 
+  const inputClass = "w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-[#1A1A2E] text-sm placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition";
+
   return (
     <Modal open={open} onClose={onClose} title={customer ? 'Edit Customer' : 'New Customer'} size="md">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
-          <input {...register('name')} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="John Smith" />
-          {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
+          <label className="block text-xs font-medium text-[#64748B] mb-1.5">Full Name</label>
+          <input {...register('name')} className={inputClass} placeholder="John Smith" />
+          {errors.name && <p className="text-[#EF4444] text-xs mt-1">{errors.name.message}</p>}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-            <input {...register('email')} type="email" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="john@email.com" />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">Email</label>
+            <input {...register('email')} type="email" className={inputClass} placeholder="john@email.com" />
+            {errors.email && <p className="text-[#EF4444] text-xs mt-1">{errors.email.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
-            <input {...register('phone')} type="tel" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="(555) 123-4567" />
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">Phone</label>
+            <input {...register('phone')} type="tel" className={inputClass} placeholder="(555) 123-4567" />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
-          <input {...register('address')} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="123 Main St" />
-          {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address.message}</p>}
+          <label className="block text-xs font-medium text-[#64748B] mb-1.5">Address</label>
+          <input {...register('address')} className={inputClass} placeholder="123 Main St" />
+          {errors.address && <p className="text-[#EF4444] text-xs mt-1">{errors.address.message}</p>}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div className="col-span-2 sm:col-span-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
-            <input {...register('city')} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="Phoenix" />
-            {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>}
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">City</label>
+            <input {...register('city')} className={inputClass} placeholder="Phoenix" />
+            {errors.city && <p className="text-[#EF4444] text-xs mt-1">{errors.city.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">State</label>
-            <input {...register('state')} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="AZ" />
-            {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state.message}</p>}
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">State</label>
+            <input {...register('state')} className={inputClass} placeholder="AZ" />
+            {errors.state && <p className="text-[#EF4444] text-xs mt-1">{errors.state.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">ZIP</label>
-            <input {...register('zip')} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="85001" />
-            {errors.zip && <p className="text-red-500 text-xs mt-1">{errors.zip.message}</p>}
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">ZIP</label>
+            <input {...register('zip')} className={inputClass} placeholder="85001" />
+            {errors.zip && <p className="text-[#EF4444] text-xs mt-1">{errors.zip.message}</p>}
           </div>
         </div>
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition">
+          <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#1A1A2E] hover:bg-[#F8FAFC] transition text-sm">
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 bg-[#0066FF] text-white rounded-lg font-medium hover:bg-[#0052CC] transition disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
           >
-            {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+            {isSubmitting && <Loader2 size={14} className="animate-spin" />}
             {customer ? 'Update' : 'Create'}
           </button>
         </div>
@@ -242,7 +250,6 @@ function CustomerFormModal({
   );
 }
 
-// Customer Detail Bottom Sheet
 function CustomerDetailSheet({
   customer, onClose, onEdit, onDelete,
 }: {
@@ -259,7 +266,6 @@ function CustomerDetailSheet({
   const deletePool = useDeletePool();
   const [deletePoolTarget, setDeletePoolTarget] = useState<string | null>(null);
 
-  // Pool form state
   const [poolType, setPoolType] = useState('inground');
   const [poolSize, setPoolSize] = useState('');
   const [surfaceType, setSurfaceType] = useState('');
@@ -289,17 +295,19 @@ function CustomerDetailSheet({
     { id: 'history' as const, label: 'History' },
   ];
 
+  const inputClass = "w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-sm text-[#1A1A2E] placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition";
+
   return (
     <Modal open={!!customer} onClose={onClose} title={customer.name} size="lg">
       <div className="space-y-4">
         {/* Customer Header */}
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">
+          <div className="w-12 h-12 rounded-xl bg-[#0066FF] text-white flex items-center justify-center font-bold text-lg">
             {customer.name.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900">{customer.name}</h3>
-            <p className="text-sm text-gray-500 flex items-center gap-1">
+            <h3 className="text-lg font-semibold text-[#1A1A2E]">{customer.name}</h3>
+            <p className="text-sm text-[#64748B] flex items-center gap-1">
               <MapPin size={12} />
               {customer.address}, {customer.city}, {customer.state}
             </p>
@@ -307,15 +315,15 @@ function CustomerDetailSheet({
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex gap-1 bg-[#F1F5F9] rounded-lg p-1">
           {detailTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveDetailTab(tab.id)}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition ${
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition ${
                 activeDetailTab === tab.id
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white text-[#1A1A2E] shadow-sm'
+                  : 'text-[#64748B] hover:text-[#1A1A2E]'
               }`}
             >
               {tab.label}
@@ -328,37 +336,37 @@ function CustomerDetailSheet({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               {customer.email && (
-                <a href={`mailto:${customer.email}`} className="flex items-center gap-2.5 p-3.5 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Mail size={14} className="text-blue-600" />
+                <a href={`mailto:${customer.email}`} className="flex items-center gap-2.5 p-3.5 bg-[#F8FAFC] rounded-lg hover:bg-[#F1F5F9] transition">
+                  <div className="w-8 h-8 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+                    <Mail size={14} className="text-[#0066FF]" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] text-gray-400 font-medium uppercase">Email</p>
-                    <p className="text-sm text-gray-700 truncate">{customer.email}</p>
+                    <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Email</p>
+                    <p className="text-sm text-[#1A1A2E] truncate">{customer.email}</p>
                   </div>
                 </a>
               )}
               {customer.phone && (
-                <a href={`tel:${customer.phone}`} className="flex items-center gap-2.5 p-3.5 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
-                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                    <Phone size={14} className="text-green-600" />
+                <a href={`tel:${customer.phone}`} className="flex items-center gap-2.5 p-3.5 bg-[#F8FAFC] rounded-lg hover:bg-[#F1F5F9] transition">
+                  <div className="w-8 h-8 bg-[#10B981]/8 rounded-lg flex items-center justify-center">
+                    <Phone size={14} className="text-[#10B981]" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] text-gray-400 font-medium uppercase">Phone</p>
-                    <p className="text-sm text-gray-700">{customer.phone}</p>
+                    <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Phone</p>
+                    <p className="text-sm text-[#1A1A2E]">{customer.phone}</p>
                   </div>
                 </a>
               )}
             </div>
 
-            <div className="p-3.5 bg-gray-50 rounded-xl">
+            <div className="p-3.5 bg-[#F8FAFC] rounded-lg">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <MapPin size={14} className="text-purple-600" />
+                <div className="w-8 h-8 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+                  <MapPin size={14} className="text-[#0066FF]" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 font-medium uppercase">Address</p>
-                  <p className="text-sm text-gray-700">{customer.address}, {customer.city}, {customer.state} {customer.zip}</p>
+                  <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Address</p>
+                  <p className="text-sm text-[#1A1A2E]">{customer.address}, {customer.city}, {customer.state} {customer.zip}</p>
                 </div>
               </div>
             </div>
@@ -366,14 +374,14 @@ function CustomerDetailSheet({
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => onEdit(customer)}
-                className="flex-1 py-2.5 flex items-center justify-center gap-2 border border-gray-200 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition text-sm"
+                className="flex-1 py-2.5 flex items-center justify-center gap-2 border border-[#E2E8F0] rounded-lg text-[#1A1A2E] font-medium hover:bg-[#F8FAFC] transition text-sm"
               >
                 <Edit2 size={14} />
                 Edit
               </button>
               <button
                 onClick={() => onDelete(customer)}
-                className="flex-1 py-2.5 flex items-center justify-center gap-2 border border-red-200 rounded-xl text-red-600 font-medium hover:bg-red-50 transition text-sm"
+                className="flex-1 py-2.5 flex items-center justify-center gap-2 border border-[#EF4444]/20 rounded-lg text-[#EF4444] font-medium hover:bg-[#EF4444]/5 transition text-sm"
               >
                 <Trash2 size={14} />
                 Delete
@@ -387,15 +395,15 @@ function CustomerDetailSheet({
           <div className="space-y-3">
             {pools && pools.length > 0 ? (
               pools.map((pool) => (
-                <div key={pool.id} className="bg-gray-50 rounded-xl p-4">
+                <div key={pool.id} className="bg-[#F8FAFC] rounded-lg p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center">
-                        <Droplets size={18} className="text-cyan-600" />
+                      <div className="w-9 h-9 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+                        <Droplets size={16} className="text-[#0066FF]" />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900 capitalize">{pool.type.replace('_', ' ')}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="font-medium text-[#1A1A2E] capitalize text-sm">{pool.type.replace('_', ' ')}</p>
+                        <p className="text-xs text-[#64748B]">
                           {pool.size_gallons ? `${pool.size_gallons.toLocaleString()} gal` : 'Size unknown'}
                           {pool.surface_type && ` · ${pool.surface_type}`}
                         </p>
@@ -403,20 +411,20 @@ function CustomerDetailSheet({
                     </div>
                     <button
                       onClick={() => setDeletePoolTarget(pool.id)}
-                      className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition"
+                      className="p-1.5 hover:bg-[#EF4444]/5 rounded-lg text-[#94A3B8] hover:text-[#EF4444] transition"
                     >
                       <Trash2 size={14} />
                     </button>
                   </div>
                   {pool.equipment_notes && (
-                    <p className="text-xs text-gray-500 mt-2 ml-13 pl-13">{pool.equipment_notes}</p>
+                    <p className="text-xs text-[#64748B] mt-2 ml-12">{pool.equipment_notes}</p>
                   )}
                 </div>
               ))
             ) : !showPoolForm ? (
               <div className="text-center py-6">
-                <Droplets className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-500 text-sm">No pools added yet</p>
+                <Droplets className="w-8 h-8 text-[#CBD5E1] mx-auto mb-2" />
+                <p className="text-[#64748B] text-sm">No pools added yet</p>
               </div>
             ) : null}
 
@@ -424,30 +432,16 @@ function CustomerDetailSheet({
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="bg-gray-50 rounded-xl p-4 space-y-3"
+                className="bg-[#F8FAFC] rounded-lg p-4 space-y-3"
               >
-                <select
-                  value={poolType}
-                  onChange={(e) => setPoolType(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                >
+                <select value={poolType} onChange={(e) => setPoolType(e.target.value)} className={inputClass}>
                   <option value="inground">In-Ground</option>
                   <option value="above_ground">Above Ground</option>
                   <option value="spa">Spa / Hot Tub</option>
                   <option value="combo">Pool + Spa Combo</option>
                 </select>
-                <input
-                  value={poolSize}
-                  onChange={(e) => setPoolSize(e.target.value)}
-                  type="number"
-                  placeholder="Size (gallons)"
-                  className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                />
-                <select
-                  value={surfaceType}
-                  onChange={(e) => setSurfaceType(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                >
+                <input value={poolSize} onChange={(e) => setPoolSize(e.target.value)} type="number" placeholder="Size (gallons)" className={inputClass} />
+                <select value={surfaceType} onChange={(e) => setSurfaceType(e.target.value)} className={inputClass}>
                   <option value="">Surface Type (optional)</option>
                   <option value="plaster">Plaster</option>
                   <option value="pebble">Pebble Tec</option>
@@ -460,19 +454,16 @@ function CustomerDetailSheet({
                   onChange={(e) => setEquipmentNotes(e.target.value)}
                   placeholder="Equipment notes (pumps, filters, etc.)"
                   rows={2}
-                  className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
+                  className={`${inputClass} resize-none`}
                 />
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowPoolForm(false)}
-                    className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-                  >
+                  <button onClick={() => setShowPoolForm(false)} className="flex-1 py-2.5 border border-[#E2E8F0] rounded-lg text-sm font-medium text-[#1A1A2E] hover:bg-white transition">
                     Cancel
                   </button>
                   <button
                     onClick={handleAddPool}
                     disabled={createPool.isPending}
-                    className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC] transition disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {createPool.isPending && <Loader2 size={14} className="animate-spin" />}
                     Add Pool
@@ -482,7 +473,7 @@ function CustomerDetailSheet({
             ) : (
               <button
                 onClick={() => setShowPoolForm(true)}
-                className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-center gap-2"
+                className="w-full py-2.5 border-2 border-dashed border-[#E2E8F0] rounded-lg text-sm text-[#64748B] hover:border-[#0066FF]/40 hover:text-[#0066FF] transition flex items-center justify-center gap-2"
               >
                 <Plus size={14} />
                 Add Pool
@@ -509,44 +500,44 @@ function CustomerDetailSheet({
           <div className="space-y-3">
             {logs && logs.length > 0 ? (
               logs.slice(0, 10).map((log) => (
-                <div key={log.id} className="bg-gray-50 rounded-xl p-3.5 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
-                    <Beaker size={16} />
+                <div key={log.id} className="bg-[#F8FAFC] rounded-lg p-3.5 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#0066FF]/8 text-[#0066FF] flex items-center justify-center shrink-0">
+                    <Beaker size={14} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-[#1A1A2E]">
                         {format(new Date(log.service_date), 'MMM d, yyyy')}
                       </p>
                       {log.users?.name && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full">{log.users.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-[#0066FF]/8 text-[#0066FF] rounded-full">{log.users.name}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {log.ph_level != null && (
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                          log.ph_level >= 7.2 && log.ph_level <= 7.8 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                          log.ph_level >= 7.2 && log.ph_level <= 7.8 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
                         }`}>pH {log.ph_level}</span>
                       )}
                       {log.chlorine_level != null && (
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                          log.chlorine_level >= 1.0 && log.chlorine_level <= 3.0 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                          log.chlorine_level >= 1.0 && log.chlorine_level <= 3.0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
                         }`}>Cl {log.chlorine_level}</span>
                       )}
                       {log.alkalinity != null && (
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                          log.alkalinity >= 80 && log.alkalinity <= 120 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                          log.alkalinity >= 80 && log.alkalinity <= 120 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'
                         }`}>Alk {log.alkalinity}</span>
                       )}
                     </div>
-                    {log.notes && <p className="text-xs text-gray-500 mt-1 truncate">{log.notes}</p>}
+                    {log.notes && <p className="text-xs text-[#64748B] mt-1 truncate">{log.notes}</p>}
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-6">
-                <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-500 text-sm">No service history yet</p>
+                <Calendar className="w-8 h-8 text-[#CBD5E1] mx-auto mb-2" />
+                <p className="text-[#64748B] text-sm">No service history yet</p>
               </div>
             )}
           </div>

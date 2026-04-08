@@ -22,9 +22,9 @@ export function SettingsTab({ orgId, onLogout }: { orgId: string; onLogout: () =
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">Settings</h2>
+      <h2 className="text-xl font-bold text-[#1A1A2E]">Settings</h2>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
         {sections.map((section, i) => (
           <motion.button
             key={section.id}
@@ -32,58 +32,44 @@ export function SettingsTab({ orgId, onLogout }: { orgId: string; onLogout: () =
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.05 }}
             onClick={() => setActiveSection(section.id)}
-            className="w-full px-4 py-4 flex items-center gap-3 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition text-left"
+            className="w-full px-4 py-3.5 flex items-center gap-3 border-b border-[#F1F5F9] last:border-0 hover:bg-[#F8FAFC] transition text-left"
           >
-            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-              <section.icon size={18} className="text-gray-600" />
+            <div className="w-9 h-9 bg-[#F1F5F9] rounded-lg flex items-center justify-center">
+              <section.icon size={16} className="text-[#64748B]" />
             </div>
             <div className="flex-1">
-              <p className="font-medium text-gray-900 text-sm">{section.label}</p>
-              <p className="text-xs text-gray-500">{section.desc}</p>
+              <p className="font-medium text-[#1A1A2E] text-sm">{section.label}</p>
+              <p className="text-xs text-[#94A3B8]">{section.desc}</p>
             </div>
-            <ChevronRight size={16} className="text-gray-300" />
+            <ChevronRight size={14} className="text-[#CBD5E1]" />
           </motion.button>
         ))}
       </div>
 
-      {/* Danger Zone */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
         <button
           onClick={onLogout}
-          className="w-full px-4 py-4 flex items-center gap-3 hover:bg-red-50/50 transition text-left"
+          className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-[#EF4444]/5 transition text-left"
         >
-          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
-            <LogOut size={18} className="text-red-500" />
+          <div className="w-9 h-9 bg-[#EF4444]/8 rounded-lg flex items-center justify-center">
+            <LogOut size={16} className="text-[#EF4444]" />
           </div>
           <div className="flex-1">
-            <p className="font-medium text-red-600 text-sm">Sign Out</p>
-            <p className="text-xs text-gray-500">Log out of your account</p>
+            <p className="font-medium text-[#EF4444] text-sm">Sign Out</p>
+            <p className="text-xs text-[#94A3B8]">Log out of your account</p>
           </div>
         </button>
       </div>
 
-      {/* Company Profile */}
-      {activeSection === 'company' && (
-        <CompanyProfileModal orgId={orgId} onClose={() => setActiveSection(null)} />
-      )}
-
-      {/* Team Members */}
-      {activeSection === 'team' && (
-        <TeamMembersModal orgId={orgId} onClose={() => setActiveSection(null)} />
-      )}
-
-      {/* Billing */}
-      {activeSection === 'billing' && (
-        <BillingModal orgId={orgId} onClose={() => setActiveSection(null)} />
-      )}
-
-      {/* Notifications */}
-      {activeSection === 'notifications' && (
-        <NotificationsModal onClose={() => setActiveSection(null)} />
-      )}
+      {activeSection === 'company' && <CompanyProfileModal orgId={orgId} onClose={() => setActiveSection(null)} />}
+      {activeSection === 'team' && <TeamMembersModal orgId={orgId} onClose={() => setActiveSection(null)} />}
+      {activeSection === 'billing' && <BillingModal orgId={orgId} onClose={() => setActiveSection(null)} />}
+      {activeSection === 'notifications' && <NotificationsModal onClose={() => setActiveSection(null)} />}
     </div>
   );
 }
+
+const inputClass = "w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-[#1A1A2E] text-sm placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition";
 
 function CompanyProfileModal({ orgId, onClose }: { orgId: string; onClose: () => void }) {
   const supabase = createClient();
@@ -108,19 +94,15 @@ function CompanyProfileModal({ orgId, onClose }: { orgId: string; onClose: () =>
     <Modal open onClose={onClose} title="Company Profile" size="sm">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-          />
+          <label className="block text-xs font-medium text-[#64748B] mb-1.5">Company Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
         </div>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 bg-[#0066FF] text-white rounded-lg font-medium text-sm hover:bg-[#0052CC] transition disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           Save Changes
         </button>
       </div>
@@ -174,7 +156,7 @@ function TeamMembersModal({ orgId, onClose }: { orgId: string; onClose: () => vo
       <div className="space-y-4">
         <button
           onClick={() => setShowAdd(!showAdd)}
-          className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-center gap-2"
+          className="w-full py-2.5 border-2 border-dashed border-[#E2E8F0] rounded-lg text-sm text-[#64748B] hover:border-[#0066FF]/40 hover:text-[#0066FF] transition flex items-center justify-center gap-2"
         >
           <Plus size={14} />
           Add Team Member
@@ -184,25 +166,14 @@ function TeamMembersModal({ orgId, onClose }: { orgId: string; onClose: () => vo
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="bg-gray-50 rounded-xl p-4 space-y-3"
+            className="bg-[#F8FAFC] rounded-lg p-4 space-y-3"
           >
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Full name"
-              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-            />
-            <input
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="Email address"
-              type="email"
-              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-            />
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Full name" className={inputClass} />
+            <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Email address" type="email" className={inputClass} />
             <button
               onClick={handleAdd}
               disabled={adding || !newName || !newEmail}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC] transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {adding && <Loader2 size={14} className="animate-spin" />}
               Add Technician
@@ -210,20 +181,20 @@ function TeamMembersModal({ orgId, onClose }: { orgId: string; onClose: () => vo
           </motion.div>
         )}
 
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-[#F1F5F9]">
           {technicians?.map(tech => (
             <div key={tech.id} className="flex items-center gap-3 py-3">
-              <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-8 h-8 rounded-full bg-[#0066FF]/8 text-[#0066FF] flex items-center justify-center font-semibold text-sm">
                 {tech.name.charAt(0)}
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{tech.name}</p>
-                <p className="text-xs text-gray-500">{tech.email} · {tech.role}</p>
+                <p className="text-sm font-medium text-[#1A1A2E]">{tech.name}</p>
+                <p className="text-xs text-[#94A3B8]">{tech.email} · {tech.role}</p>
               </div>
               {tech.role !== 'admin' && (
                 <button
                   onClick={() => setDeleteTarget(tech.id)}
-                  className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition"
+                  className="p-1.5 hover:bg-[#EF4444]/5 rounded-lg text-[#94A3B8] hover:text-[#EF4444] transition"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -231,7 +202,7 @@ function TeamMembersModal({ orgId, onClose }: { orgId: string; onClose: () => vo
             </div>
           ))}
           {!technicians?.length && (
-            <p className="text-sm text-gray-400 text-center py-4">No team members yet</p>
+            <p className="text-sm text-[#94A3B8] text-center py-4">No team members yet</p>
           )}
         </div>
 
@@ -265,33 +236,33 @@ function BillingModal({ orgId, onClose }: { orgId: string; onClose: () => void }
   return (
     <Modal open onClose={onClose} title="Billing & Stripe" size="md">
       <div className="space-y-4">
-        <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+        <div className="bg-[#0066FF]/5 rounded-lg p-4 border border-[#0066FF]/10">
           <div className="flex items-center gap-2 mb-2">
-            <Shield size={16} className="text-blue-600" />
-            <p className="font-medium text-blue-900 text-sm">Stripe Integration</p>
+            <Shield size={14} className="text-[#0066FF]" />
+            <p className="font-medium text-[#1A1A2E] text-sm">Stripe Integration</p>
           </div>
-          <p className="text-sm text-blue-700">
+          <p className="text-sm text-[#64748B]">
             Connect your Stripe account to process payments and manage subscriptions for your customers.
           </p>
         </div>
-        <div className="bg-gray-50 rounded-xl p-4">
+        <div className="bg-[#F8FAFC] rounded-lg p-4">
           {loading ? (
             <div className="flex items-center gap-2">
-              <Loader2 size={14} className="animate-spin text-gray-400" />
-              <span className="text-sm text-gray-500">Checking status...</span>
+              <Loader2 size={14} className="animate-spin text-[#94A3B8]" />
+              <span className="text-sm text-[#64748B]">Checking status...</span>
             </div>
           ) : (
             <>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[#64748B]">
                 Status:{' '}
-                <span className={`font-medium ${isConnected ? 'text-green-600' : 'text-orange-600'}`}>
+                <span className={`font-medium ${isConnected ? 'text-[#10B981]' : 'text-[#F59E0B]'}`}>
                   {isConnected ? 'Connected' : 'Not Connected'}
                 </span>
               </p>
               {isConnected && (
-                <p className="text-xs text-gray-500 mt-1">Account: {stripeAccountId}</p>
+                <p className="text-xs text-[#94A3B8] mt-1">Account: {stripeAccountId}</p>
               )}
-              <button className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition">
+              <button className="mt-3 px-4 py-2 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC] transition">
                 {isConnected ? 'Manage Stripe Account' : 'Connect Stripe Account'}
               </button>
             </>
@@ -326,20 +297,20 @@ function NotificationsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal open onClose={onClose} title="Notifications" size="sm">
-      <div className="space-y-4">
+      <div className="space-y-1">
         {NOTIFICATION_DEFAULTS.map((notif) => {
           const enabled = prefs[notif.key] ?? notif.default;
           return (
-            <div key={notif.key} className="flex items-center justify-between py-2">
+            <div key={notif.key} className="flex items-center justify-between py-3">
               <div>
-                <p className="text-sm font-medium text-gray-900">{notif.label}</p>
-                <p className="text-xs text-gray-500">{notif.desc}</p>
+                <p className="text-sm font-medium text-[#1A1A2E]">{notif.label}</p>
+                <p className="text-xs text-[#94A3B8]">{notif.desc}</p>
               </div>
               <button
                 onClick={() => toggle(notif.key)}
-                className={`w-11 h-6 rounded-full transition-colors relative ${enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                className={`w-10 h-5.5 rounded-full transition-colors relative ${enabled ? 'bg-[#0066FF]' : 'bg-[#CBD5E1]'}`}
               >
-                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? 'left-[22px]' : 'left-0.5'}`} />
+                <span className={`absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow-sm transition-transform ${enabled ? 'left-[18px]' : 'left-0.5'}`} />
               </button>
             </div>
           );

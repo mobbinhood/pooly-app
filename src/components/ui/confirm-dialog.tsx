@@ -33,29 +33,29 @@ export function ConfirmDialog({
   };
 
   const btnClass = variant === 'danger'
-    ? 'bg-red-600 hover:bg-red-700 text-white'
-    : 'bg-yellow-600 hover:bg-yellow-700 text-white';
+    ? 'bg-[#EF4444] hover:bg-red-600 text-white'
+    : 'bg-[#F59E0B] hover:bg-amber-600 text-white';
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
       <div className="text-center">
-        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <AlertTriangle className="w-6 h-6 text-red-600" />
+        <div className="w-12 h-12 bg-[#EF4444]/8 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle className="w-6 h-6 text-[#EF4444]" />
         </div>
-        <p className="text-gray-600 mb-6">{message}</p>
+        <p className="text-[#64748B] text-sm mb-6">{message}</p>
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 px-4 border border-gray-300 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition"
+            className="flex-1 py-2.5 px-4 border border-[#E2E8F0] rounded-lg font-medium text-[#1A1A2E] hover:bg-[#F8FAFC] transition text-sm"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             disabled={loading}
-            className={`flex-1 py-2.5 px-4 rounded-xl font-medium transition disabled:opacity-50 flex items-center justify-center gap-2 ${btnClass}`}
+            className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition disabled:opacity-50 flex items-center justify-center gap-2 text-sm ${btnClass}`}
           >
-            {loading && <Loader2 size={16} className="animate-spin" />}
+            {loading && <Loader2 size={14} className="animate-spin" />}
             {confirmLabel}
           </button>
         </div>

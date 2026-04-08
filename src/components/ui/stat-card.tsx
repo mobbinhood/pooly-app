@@ -7,40 +7,33 @@ interface StatCardProps {
   label: string;
   value: string | number;
   icon: LucideIcon;
-  color: 'blue' | 'green' | 'purple' | 'orange' | 'cyan';
-  trend?: { value: number; label: string };
+  color?: 'blue' | 'green' | 'amber' | 'red';
   delay?: number;
 }
 
 const colorMap = {
-  blue: { bg: 'bg-blue-500/10', icon: 'text-blue-600', border: 'border-blue-100' },
-  green: { bg: 'bg-emerald-500/10', icon: 'text-emerald-600', border: 'border-emerald-100' },
-  purple: { bg: 'bg-purple-500/10', icon: 'text-purple-600', border: 'border-purple-100' },
-  orange: { bg: 'bg-orange-500/10', icon: 'text-orange-600', border: 'border-orange-100' },
-  cyan: { bg: 'bg-cyan-500/10', icon: 'text-cyan-600', border: 'border-cyan-100' },
+  blue: { bg: 'bg-[#0066FF]/8', icon: 'text-[#0066FF]' },
+  green: { bg: 'bg-[#10B981]/8', icon: 'text-[#10B981]' },
+  amber: { bg: 'bg-[#F59E0B]/8', icon: 'text-[#F59E0B]' },
+  red: { bg: 'bg-[#EF4444]/8', icon: 'text-[#EF4444]' },
 };
 
-export function StatCard({ label, value, icon: Icon, color, trend, delay = 0 }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, color = 'blue', delay = 0 }: StatCardProps) {
   const c = colorMap[color];
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay }}
-      className={`bg-white/80 backdrop-blur-sm rounded-2xl p-5 shadow-sm border ${c.border} hover:shadow-md transition-shadow`}
+      transition={{ duration: 0.3, delay }}
+      className="bg-white rounded-xl p-4 border border-[#E2E8F0]"
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-500">{label}</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
-          {trend && (
-            <p className={`text-xs mt-1 font-medium ${trend.value >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              {trend.value >= 0 ? '+' : ''}{trend.value}% {trend.label}
-            </p>
-          )}
+          <p className="text-xs font-medium text-[#64748B]">{label}</p>
+          <p className="text-2xl font-bold text-[#1A1A2E] mt-1 tabular-nums">{value}</p>
         </div>
-        <div className={`w-10 h-10 ${c.bg} rounded-xl flex items-center justify-center`}>
-          <Icon className={`w-5 h-5 ${c.icon}`} />
+        <div className={`w-9 h-9 ${c.bg} rounded-lg flex items-center justify-center`}>
+          <Icon className={`w-4 h-4 ${c.icon}`} />
         </div>
       </div>
     </motion.div>

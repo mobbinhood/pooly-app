@@ -65,12 +65,12 @@ export default function AppPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
         >
-          <Droplets className="w-10 h-10 text-blue-600" />
+          <Droplets className="w-8 h-8 text-[#0066FF]" />
         </motion.div>
       </div>
     );
@@ -85,41 +85,41 @@ export default function AppPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#F8FAFC]">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <header className="animated-gradient text-white px-4 pt-4 pb-6 shadow-lg sm:rounded-b-2xl">
+        <header className="bg-white border-b border-[#E2E8F0] px-5 pt-4 pb-4 sm:rounded-b-2xl">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                <Droplets className="w-5 h-5" />
+              <div className="w-9 h-9 bg-[#0066FF] rounded-lg flex items-center justify-center">
+                <Droplets className="text-white" size={18} />
               </div>
               <div>
-                <h1 className="text-xl font-bold">Pooly</h1>
-                <p className="text-blue-100 text-xs">
+                <h1 className="text-lg font-bold text-[#1A1A2E]">Pooly</h1>
+                <p className="text-[#64748B] text-xs">
                   {user?.user_metadata?.name || user?.email}
                 </p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="p-2 hover:bg-white/10 rounded-lg transition"
+              className="p-2 hover:bg-[#F8FAFC] rounded-lg transition text-[#64748B]"
               title="Sign out"
             >
-              <LogOut size={20} />
+              <LogOut size={18} />
             </button>
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="px-4 py-4 pb-24 -mt-2">
+        <main className="px-4 py-5 pb-24">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
             >
               {activeTab === 'home' && <DashboardTab orgId={orgId!} onNavigate={(tab) => setActiveTab(tab as Tab)} />}
               {activeTab === 'customers' && <CustomersTab orgId={orgId!} />}
@@ -132,7 +132,7 @@ export default function AppPage() {
       </div>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-200/50 px-2 py-1 safe-area-inset-bottom z-40">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] px-2 py-1.5 safe-area-inset-bottom z-40">
         <div className="flex justify-around items-center max-w-lg mx-auto">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -140,20 +140,20 @@ export default function AppPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="relative flex flex-col items-center py-2 px-4 rounded-xl transition-all"
+                className="relative flex flex-col items-center py-1.5 px-4 rounded-lg transition-all"
               >
                 {isActive && (
                   <motion.div
                     layoutId="tab-bg"
-                    className="absolute inset-0 bg-blue-50 rounded-xl"
+                    className="absolute inset-0 bg-[#0066FF]/5 rounded-lg"
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   />
                 )}
                 <tab.icon
-                  size={22}
-                  className={`relative z-10 transition-colors ${isActive ? 'text-blue-600' : 'text-gray-400'}`}
+                  size={20}
+                  className={`relative z-10 transition-colors ${isActive ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}
                 />
-                <span className={`relative z-10 text-[10px] mt-0.5 font-medium transition-colors ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
+                <span className={`relative z-10 text-[10px] mt-0.5 font-medium transition-colors ${isActive ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}>
                   {tab.label}
                 </span>
               </button>
