@@ -1,0 +1,6 @@
+## Direct Task Execution
+- Implementing card info input with Stripe
+- Adding discount code functionality
+- Testing in test account
+- Deploying changes to GitHub for Vercel deployment
+
