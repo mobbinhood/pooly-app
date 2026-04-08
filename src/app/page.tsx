@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Home, Users, MapPin, Settings, Tag, LogOut, Droplets, FileText, Package, Wrench, MoreHorizontal, X, Send } from 'lucide-react';
+import { Home, Users, MapPin, Settings, Tag, LogOut, Droplets, FileText, Package, Wrench, MoreHorizontal, X, Send, CalendarDays } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardTab } from '@/components/tabs/dashboard-tab';
@@ -14,8 +14,9 @@ import { InvoicesTab } from '@/components/tabs/invoices-tab';
 import { InventoryTab } from '@/components/tabs/inventory-tab';
 import { WorkOrdersTab } from '@/components/tabs/work-orders-tab';
 import { BroadcastTab } from '@/components/tabs/broadcast-tab';
+import { CalendarTab } from '@/components/tabs/calendar-tab';
 
-type Tab = 'home' | 'customers' | 'routes' | 'discounts' | 'settings' | 'invoices' | 'inventory' | 'work-orders' | 'broadcast';
+type Tab = 'home' | 'customers' | 'routes' | 'discounts' | 'settings' | 'invoices' | 'inventory' | 'work-orders' | 'broadcast' | 'calendar';
 
 export default function AppPage() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -85,10 +86,11 @@ export default function AppPage() {
     { id: 'home' as Tab, icon: Home, label: 'Home' },
     { id: 'customers' as Tab, icon: Users, label: 'Customers' },
     { id: 'routes' as Tab, icon: MapPin, label: 'Routes' },
-    { id: 'invoices' as Tab, icon: FileText, label: 'Invoices' },
+    { id: 'calendar' as Tab, icon: CalendarDays, label: 'Calendar' },
   ];
 
   const moreMenuTabs = [
+    { id: 'invoices' as Tab, icon: FileText, label: 'Invoices' },
     { id: 'work-orders' as Tab, icon: Wrench, label: 'Work Orders' },
     { id: 'inventory' as Tab, icon: Package, label: 'Inventory' },
     { id: 'broadcast' as Tab, icon: Send, label: 'Broadcast' },
@@ -142,6 +144,7 @@ export default function AppPage() {
               {activeTab === 'inventory' && <InventoryTab orgId={orgId!} />}
               {activeTab === 'work-orders' && <WorkOrdersTab orgId={orgId!} />}
               {activeTab === 'broadcast' && <BroadcastTab orgId={orgId!} />}
+              {activeTab === 'calendar' && <CalendarTab orgId={orgId!} />}
               {activeTab === 'discounts' && <DiscountsTab orgId={orgId!} />}
               {activeTab === 'settings' && <SettingsTab orgId={orgId!} onLogout={handleLogout} />}
             </motion.div>
