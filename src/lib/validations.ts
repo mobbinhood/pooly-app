@@ -31,6 +31,13 @@ export const serviceLogSchema = z.object({
   chlorine_level: z.number().min(0).max(10).optional().or(z.nan().transform(() => undefined)),
   ph_level: z.number().min(0).max(14).optional().or(z.nan().transform(() => undefined)),
   alkalinity: z.number().min(0).max(300).optional().or(z.nan().transform(() => undefined)),
+  cya: z.number().min(0).max(300).optional().or(z.nan().transform(() => undefined)),
+  calcium: z.number().min(0).max(1000).optional().or(z.nan().transform(() => undefined)),
+  salt: z.number().min(0).max(10000).optional().or(z.nan().transform(() => undefined)),
+  tds: z.number().min(0).max(10000).optional().or(z.nan().transform(() => undefined)),
+  combined_chlorine: z.number().min(0).max(10).optional().or(z.nan().transform(() => undefined)),
+  filter_psi: z.number().min(0).max(100).optional().or(z.nan().transform(() => undefined)),
+  water_temp: z.number().min(0).max(120).optional().or(z.nan().transform(() => undefined)),
   notes: z.string().optional(),
 });
 

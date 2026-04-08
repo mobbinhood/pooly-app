@@ -119,7 +119,7 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
   const inputClass = "w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-[#1A1A2E] text-sm placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition";
 
   return (
-    <Modal open={open} onClose={onClose} title="Log Service Visit" size="md">
+    <Modal open={open} onClose={onClose} title="Start Service" size="md">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         {/* Timer */}
         <div className="flex items-center gap-2 bg-[#0066FF]/5 rounded-lg p-3 border border-[#0066FF]/10">
@@ -127,17 +127,30 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
           <span className="text-sm text-[#0066FF] font-medium tabular-nums">Time on site: {elapsed} min</span>
         </div>
 
-        {/* Customer Select */}
-        <div>
-          <label className="block text-xs font-medium text-[#64748B] mb-1.5">Customer</label>
-          <select {...register('customer_id')} className={inputClass}>
-            <option value="">Select customer...</option>
-            {customers?.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          {errors.customer_id && <p className="text-[#EF4444] text-xs mt-1">{errors.customer_id.message}</p>}
-        </div>
+        {/* Customer Info */}
+        {preselectedCustomerId && selectedCustomer ? (
+          <div className="flex items-center gap-3 bg-[#F8FAFC] rounded-lg p-3 border border-[#E2E8F0]">
+            <div className="w-10 h-10 rounded-full bg-[#0066FF]/10 flex items-center justify-center">
+              <span className="text-sm font-bold text-[#0066FF]">{selectedCustomer.name?.charAt(0)}</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#1A1A2E]">{selectedCustomer.name}</p>
+              {selectedCustomer.email && <p className="text-xs text-[#64748B]">{selectedCustomer.email}</p>}
+            </div>
+            <input type="hidden" {...register('customer_id')} />
+          </div>
+        ) : (
+          <div>
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">Customer</label>
+            <select {...register('customer_id')} className={inputClass}>
+              <option value="">Select customer...</option>
+              {customers?.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            {errors.customer_id && <p className="text-[#EF4444] text-xs mt-1">{errors.customer_id.message}</p>}
+          </div>
+        )}
 
         {/* Date */}
         <div>
@@ -163,12 +176,22 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
               />
             </div>
             <div>
-              <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">Chlorine</label>
+              <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">Free Chlorine</label>
               <input
                 {...register('chlorine_level', { valueAsNumber: true })}
                 type="number"
                 step="0.1"
                 placeholder="1.0-3.0"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">Combined Cl</label>
+              <input
+                {...register('combined_chlorine', { valueAsNumber: true })}
+                type="number"
+                step="0.1"
+                placeholder="0.0-0.2"
                 className={inputClass}
               />
             </div>
@@ -181,11 +204,71 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
                 className={inputClass}
               />
             </div>
+            <div>
+              <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">CYA</label>
+              <input
+                {...register('cya', { valueAsNumber: true })}
+                type="number"
+                placeholder="30-50"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">Calcium</label>
+              <input
+                {...register('calcium', { valueAsNumber: true })}
+                type="number"
+                placeholder="200-400"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">Salt (ppm)</label>
+              <input
+                {...register('salt', { valueAsNumber: true })}
+                type="number"
+                placeholder="2700-3400"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">TDS</label>
+              <input
+                {...register('tds', { valueAsNumber: true })}
+                type="number"
+                placeholder="<3000"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">Water Temp °F</label>
+              <input
+                {...register('water_temp', { valueAsNumber: true })}
+                type="number"
+                placeholder="78-82"
+                className={inputClass}
+              />
+            </div>
           </div>
-          <div className="flex gap-2 mt-2">
+
+          {/* Filter PSI */}
+          <div className="mt-3">
+            <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">Filter PSI</label>
+            <input
+              {...register('filter_psi', { valueAsNumber: true })}
+              type="number"
+              placeholder="Normal range for filter"
+              className={inputClass}
+            />
+          </div>
+
+          <div className="flex gap-2 mt-2 flex-wrap">
             <span className="text-[10px] px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded-full font-medium">pH: 7.2-7.8</span>
-            <span className="text-[10px] px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded-full font-medium">Cl: 1.0-3.0</span>
+            <span className="text-[10px] px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded-full font-medium">FC: 1.0-3.0</span>
+            <span className="text-[10px] px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded-full font-medium">CC: 0-0.2</span>
             <span className="text-[10px] px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded-full font-medium">Alk: 80-120</span>
+            <span className="text-[10px] px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded-full font-medium">CYA: 30-50</span>
+            <span className="text-[10px] px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded-full font-medium">Ca: 200-400</span>
           </div>
         </div>
 
@@ -267,7 +350,7 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
           className="w-full py-2.5 bg-[#0066FF] text-white rounded-lg font-medium text-sm hover:bg-[#0052CC] transition disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {createLog.isPending ? <Loader2 size={14} className="animate-spin" /> : <Droplets size={14} />}
-          Save Service Log
+          Complete & Save Service
         </button>
       </form>
     </Modal>

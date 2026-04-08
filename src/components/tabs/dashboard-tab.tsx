@@ -170,7 +170,7 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
           <div className="w-10 h-10 bg-[#10B981]/8 rounded-lg flex items-center justify-center">
             <ClipboardList size={18} className="text-[#10B981]" />
           </div>
-          <span className="text-xs font-medium text-[#1A1A2E]">Log Service</span>
+          <span className="text-xs font-medium text-[#1A1A2E]">Start Service</span>
         </button>
         <button
           onClick={() => setShowCalculator(true)}
