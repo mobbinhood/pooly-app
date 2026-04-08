@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Calculator, Droplets, ChevronDown, ChevronUp, FlaskConical } from 'lucide-react';
+import { Calculator, Droplets, ChevronDown, ChevronUp, FlaskConical, Gauge } from 'lucide-react';
 
 type ChemicalReading = {
   ph_level?: number;
@@ -274,10 +274,37 @@ export function InlineDosingCalculator({
   );
 }
 
+// LSI (Langelier Saturation Index) Calculator
+// LSI = pH + TF + CF + AF - 12.1
+// TF = Temperature Factor, CF = Calcium Hardness Factor, AF = Alkalinity Factor
+function calculateLSI(pH: number, tempF: number, calcium: number, alkalinity: number, tds: number): number {
+  // Temperature factor (TF) from lookup table approximation
+  const TF = Math.log10(tempF - 32 + 0.01) * 0.85 - 0.2;
+  // Calcium factor
+  const CF = Math.log10(calcium) - 0.4;
+  // Alkalinity factor
+  const AF = Math.log10(alkalinity);
+  // TDS factor correction
+  const TDSf = tds > 1000 ? 12.27 : 12.1;
+
+  return Math.round((pH + TF + CF + AF - TDSf) * 100) / 100;
+}
+
+function getLSIStatus(lsi: number): { label: string; color: string; description: string } {
+  if (lsi < -0.5) return { label: 'Corrosive', color: '#EF4444', description: 'Water is aggressive — will corrode metal, etch plaster, and dissolve grout.' };
+  if (lsi < -0.3) return { label: 'Slightly Corrosive', color: '#F97316', description: 'Mildly aggressive — may cause slow surface damage over time.' };
+  if (lsi <= 0.3) return { label: 'Balanced', color: '#10B981', description: 'Water is balanced — ideal range for pool surfaces and equipment.' };
+  if (lsi <= 0.5) return { label: 'Slightly Scaling', color: '#F97316', description: 'Mild scale tendency — monitor and adjust if needed.' };
+  return { label: 'Scale Forming', color: '#EF4444', description: 'Water will deposit calcium scale on surfaces, heater, and tile.' };
+}
+
 // Standalone calculator for dashboard access
 export function StandaloneDosingCalculator() {
   const [gallons, setGallons] = useState('');
   const [readings, setReadings] = useState<ChemicalReading>({});
+  const [waterTemp, setWaterTemp] = useState('');
+  const [tds, setTds] = useState('1000');
+  const [showLSI, setShowLSI] = useState(false);
 
   const dosages = useMemo(() => {
     const g = parseInt(gallons);
@@ -428,6 +455,127 @@ export function StandaloneDosingCalculator() {
           )}
         </div>
       )}
+
+      {/* LSI Calculator */}
+      <div className="border border-[#0066FF]/15 rounded-lg overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowLSI(!showLSI)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-[#0066FF]/5 hover:bg-[#0066FF]/8 transition"
+        >
+          <div className="flex items-center gap-2">
+            <Gauge size={14} className="text-[#0066FF]" />
+            <span className="text-sm font-medium text-[#0066FF]">LSI Calculator</span>
+          </div>
+          {showLSI ? <ChevronUp size={14} className="text-[#0066FF]" /> : <ChevronDown size={14} className="text-[#0066FF]" />}
+        </button>
+
+        {showLSI && (
+          <div className="p-4 space-y-4">
+            <p className="text-xs text-[#64748B]">
+              The Langelier Saturation Index predicts whether water will deposit scale or corrode surfaces. Target: -0.3 to +0.3.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">Water Temp (&deg;F)</label>
+                <input
+                  type="number"
+                  value={waterTemp}
+                  onChange={(e) => setWaterTemp(e.target.value)}
+                  placeholder="e.g. 82"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-[#94A3B8] mb-1 uppercase font-medium">TDS (ppm)</label>
+                <input
+                  type="number"
+                  value={tds}
+                  onChange={(e) => setTds(e.target.value)}
+                  placeholder="1000"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <p className="text-[10px] text-[#94A3B8]">
+              pH, Calcium, and Alkalinity from readings above are used automatically.
+            </p>
+
+            {readings.ph_level && readings.calcium && readings.alkalinity && waterTemp ? (() => {
+              const lsi = calculateLSI(
+                readings.ph_level,
+                parseFloat(waterTemp),
+                readings.calcium,
+                readings.alkalinity,
+                parseInt(tds) || 1000
+              );
+              const status = getLSIStatus(lsi);
+              return (
+                <div className="rounded-lg border p-4" style={{ borderColor: `${status.color}30`, backgroundColor: `${status.color}08` }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-[#64748B]">LSI Value</span>
+                    <span className="text-2xl font-bold tabular-nums" style={{ color: status.color }}>
+                      {lsi > 0 ? '+' : ''}{lsi.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: status.color }} />
+                    <span className="text-sm font-semibold" style={{ color: status.color }}>{status.label}</span>
+                  </div>
+                  <p className="text-xs text-[#64748B]">{status.description}</p>
+
+                  {/* LSI visual scale */}
+                  <div className="mt-3">
+                    <div className="relative h-2 rounded-full bg-gradient-to-r from-[#EF4444] via-[#10B981] to-[#EF4444] overflow-hidden">
+                      <div
+                        className="absolute top-0 w-1 h-full bg-white border border-[#1A1A2E] rounded-full"
+                        style={{ left: `${Math.min(Math.max((lsi + 1) / 2 * 100, 0), 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[9px] text-[#94A3B8]">-1.0</span>
+                      <span className="text-[9px] text-[#10B981] font-medium">0</span>
+                      <span className="text-[9px] text-[#94A3B8]">+1.0</span>
+                    </div>
+                  </div>
+
+                  {/* Recommendations */}
+                  {(lsi < -0.3 || lsi > 0.3) && (
+                    <div className="mt-3 pt-3 border-t" style={{ borderColor: `${status.color}20` }}>
+                      <p className="text-[10px] font-medium text-[#64748B] mb-1">Adjust by:</p>
+                      <ul className="text-[10px] text-[#64748B] space-y-0.5">
+                        {lsi < -0.3 && (
+                          <>
+                            <li>• Raise pH (soda ash)</li>
+                            <li>• Raise calcium hardness (calcium chloride)</li>
+                            <li>• Raise alkalinity (baking soda)</li>
+                          </>
+                        )}
+                        {lsi > 0.3 && (
+                          <>
+                            <li>• Lower pH (muriatic acid)</li>
+                            <li>• Lower alkalinity (acid + aeration)</li>
+                            <li>• Reduce water temperature if possible</li>
+                          </>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })() : (
+              <div className="text-center py-4 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
+                <Gauge className="w-6 h-6 text-[#94A3B8] mx-auto mb-1.5" />
+                <p className="text-xs text-[#94A3B8]">
+                  Enter pH, Calcium, Alkalinity, and Water Temp to calculate LSI
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
