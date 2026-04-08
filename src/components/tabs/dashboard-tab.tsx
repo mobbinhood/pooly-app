@@ -5,12 +5,15 @@ import { useDashboardStats, useServiceLogs, useUser, useCompletedStops, useToggl
 import { StatCard } from '@/components/ui/stat-card';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { ServiceLogModal } from './service-log-modal';
-import { Calendar, CheckCircle, AlertTriangle, Clock, MapPin, Droplets, ClipboardList, Check, Navigation } from 'lucide-react';
+import { Calendar, CheckCircle, AlertTriangle, Clock, MapPin, Droplets, ClipboardList, Check, Navigation, Calculator } from 'lucide-react';
+import { Modal } from '@/components/ui/modal';
+import { StandaloneDosingCalculator } from '@/components/chemical-calculator';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 
 export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?: (tab: string) => void }) {
   const [showServiceLog, setShowServiceLog] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
   const [serviceLogCustomerId, setServiceLogCustomerId] = useState<string | undefined>();
   const { data: userData } = useUser();
   const { data: stats, isLoading } = useDashboardStats(orgId);
@@ -144,25 +147,34 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.28 }}
-        className="grid grid-cols-2 gap-3"
+        className="grid grid-cols-3 gap-3"
       >
         <button
           onClick={() => { setServiceLogCustomerId(undefined); setShowServiceLog(true); }}
-          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex items-center gap-3 hover:border-[#0066FF]/30 transition"
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
         >
           <div className="w-10 h-10 bg-[#10B981]/8 rounded-lg flex items-center justify-center">
             <ClipboardList size={18} className="text-[#10B981]" />
           </div>
-          <span className="text-sm font-medium text-[#1A1A2E]">Log Service</span>
+          <span className="text-xs font-medium text-[#1A1A2E]">Log Service</span>
+        </button>
+        <button
+          onClick={() => setShowCalculator(true)}
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
+        >
+          <div className="w-10 h-10 bg-[#F59E0B]/8 rounded-lg flex items-center justify-center">
+            <Calculator size={18} className="text-[#F59E0B]" />
+          </div>
+          <span className="text-xs font-medium text-[#1A1A2E]">Dosing Calc</span>
         </button>
         <button
           onClick={() => onNavigate?.('customers')}
-          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex items-center gap-3 hover:border-[#0066FF]/30 transition"
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
         >
           <div className="w-10 h-10 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
             <MapPin size={18} className="text-[#0066FF]" />
           </div>
-          <span className="text-sm font-medium text-[#1A1A2E]">Customers</span>
+          <span className="text-xs font-medium text-[#1A1A2E]">Customers</span>
         </button>
       </motion.div>
 
@@ -276,6 +288,10 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
           preselectedCustomerId={serviceLogCustomerId}
         />
       )}
+
+      <Modal open={showCalculator} onClose={() => setShowCalculator(false)} title="Chemical Dosing Calculator" size="md">
+        <StandaloneDosingCalculator />
+      </Modal>
     </div>
   );
 }

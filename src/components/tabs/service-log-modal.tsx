@@ -8,6 +8,7 @@ import { useCreateServiceLog, useCustomers } from '@/lib/hooks';
 import { Modal } from '@/components/ui/modal';
 import { Droplets, Beaker, Loader2, Camera, Clock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { InlineDosingCalculator } from '@/components/chemical-calculator';
 import toast from 'react-hot-toast';
 
 interface ServiceLogModalProps {
@@ -26,13 +27,22 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
   const [uploading, setUploading] = useState(false);
   const [startTime] = useState(new Date());
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ServiceLogInput>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<ServiceLogInput>({
     resolver: zodResolver(serviceLogSchema),
     defaultValues: {
       customer_id: preselectedCustomerId || '',
       service_date: new Date().toISOString().split('T')[0],
     },
   });
+
+  const watchedCustomerId = watch('customer_id');
+  const watchedPh = watch('ph_level');
+  const watchedChlorine = watch('chlorine_level');
+  const watchedAlkalinity = watch('alkalinity');
+
+  // Look up pool size from selected customer
+  const selectedCustomer = customers?.find(c => c.id === watchedCustomerId);
+  const poolSizeGallons = selectedCustomer?.pools?.[0]?.size_gallons ?? null;
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -151,6 +161,16 @@ export function ServiceLogModal({ open, onClose, orgId, technicianId, preselecte
             <span className="text-[10px] px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded-full font-medium">Alk: 80-120</span>
           </div>
         </div>
+
+        {/* Dosing Calculator */}
+        <InlineDosingCalculator
+          readings={{
+            ph_level: watchedPh || undefined,
+            chlorine_level: watchedChlorine || undefined,
+            alkalinity: watchedAlkalinity || undefined,
+          }}
+          poolSizeGallons={poolSizeGallons}
+        />
 
         {/* Notes */}
         <div>
