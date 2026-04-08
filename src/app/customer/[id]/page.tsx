@@ -27,6 +27,8 @@ import {
   Receipt,
   AlertCircle,
   CheckCircle2,
+  Tag,
+  Repeat,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -192,6 +194,43 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                     <p className="text-sm text-[#0066FF] truncate">{customer.email}</p>
                   </div>
                 </a>
+              )}
+            </div>
+          </section>
+
+          {/* Service Frequency & Tags */}
+          <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#F1F5F9]">
+              <h2 className="text-sm font-semibold text-[#1A1A2E]">Service Details</h2>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-[#0066FF]/8 rounded-lg flex items-center justify-center shrink-0">
+                  <Repeat size={14} className="text-[#0066FF]" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Service Frequency</p>
+                  <p className="text-sm text-[#1A1A2E] font-medium capitalize">
+                    {(customer as { service_frequency?: string }).service_frequency === 'biweekly' ? 'Bi-weekly' :
+                     (customer as { service_frequency?: string }).service_frequency === 'on_call' ? 'On Call' :
+                     (customer as { service_frequency?: string }).service_frequency || 'Weekly'}
+                  </p>
+                </div>
+              </div>
+              {((customer as { tags?: string[] }).tags ?? []).length > 0 && (
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-[#F59E0B]/8 rounded-lg flex items-center justify-center shrink-0">
+                    <Tag size={14} className="text-[#F59E0B]" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Tags</p>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {((customer as { tags?: string[] }).tags ?? []).map((tag: string) => (
+                        <span key={tag} className="px-2 py-0.5 rounded-full bg-[#F1F5F9] text-[#64748B] text-xs font-medium">{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </section>

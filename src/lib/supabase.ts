@@ -78,6 +78,8 @@ export type Database = {
           gate_code: string | null;
           access_notes: string | null;
           parking_info: string | null;
+          tags: string[];
+          service_frequency: 'weekly' | 'biweekly' | 'monthly' | 'on_call';
           created_at: string;
         };
         Insert: {
@@ -96,6 +98,8 @@ export type Database = {
           gate_code?: string | null;
           access_notes?: string | null;
           parking_info?: string | null;
+          tags?: string[];
+          service_frequency?: 'weekly' | 'biweekly' | 'monthly' | 'on_call';
         };
         Update: {
           name?: string;
@@ -111,6 +115,8 @@ export type Database = {
           gate_code?: string | null;
           access_notes?: string | null;
           parking_info?: string | null;
+          tags?: string[];
+          service_frequency?: 'weekly' | 'biweekly' | 'monthly' | 'on_call';
         };
       };
       pools: {

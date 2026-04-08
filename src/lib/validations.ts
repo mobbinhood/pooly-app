@@ -23,6 +23,8 @@ export const customerSchema = z.object({
   city: z.string().min(1, 'City is required'),
   state: z.string().min(1, 'State is required'),
   zip: z.string().min(5, 'Valid ZIP required'),
+  tags: z.array(z.string()).optional(),
+  service_frequency: z.enum(['weekly', 'biweekly', 'monthly', 'on_call']).optional(),
 });
 
 export const serviceLogSchema = z.object({

@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Users, Phone, Mail, MapPin, Edit2, Trash2, ChevronRight, X, Loader2, Droplets, Beaker, Calendar, UserPlus, Clock, ChevronDown, ChevronUp, Wrench, AlertCircle, CheckCircle2, Camera, MessageSquare, CalendarPlus, Key, Car, FileText } from 'lucide-react';
+import { Plus, Search, Users, Phone, Mail, MapPin, Edit2, Trash2, ChevronRight, X, Loader2, Droplets, Beaker, Calendar, UserPlus, Clock, ChevronDown, ChevronUp, Wrench, AlertCircle, CheckCircle2, Camera, MessageSquare, CalendarPlus, Key, Car, FileText, Tag, Repeat } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -30,12 +30,19 @@ export function CustomersTab({ orgId }: { orgId: string }) {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
 
-  const filtered = customers?.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.address.toLowerCase().includes(search.toLowerCase()) ||
-    c.email?.toLowerCase().includes(search.toLowerCase())
-  ) ?? [];
+  // Collect all unique tags across customers
+  const allTags = Array.from(new Set(customers?.flatMap(c => c.tags ?? []) ?? [])).sort();
+
+  const filtered = customers?.filter(c => {
+    const matchesSearch = !search ||
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.address.toLowerCase().includes(search.toLowerCase()) ||
+      c.email?.toLowerCase().includes(search.toLowerCase());
+    const matchesTag = !activeTagFilter || (c.tags ?? []).includes(activeTagFilter);
+    return matchesSearch && matchesTag;
+  }) ?? [];
 
   const openEdit = (customer: Customer) => {
     setEditingCustomer(customer);
@@ -86,6 +93,28 @@ export function CustomersTab({ orgId }: { orgId: string }) {
         )}
       </div>
 
+      {/* Tag Filters */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setActiveTagFilter(null)}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${!activeTagFilter ? 'bg-[#0066FF] text-white' : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'}`}
+          >
+            All
+          </button>
+          {allTags.map(tag => (
+            <button
+              key={tag}
+              onClick={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition flex items-center gap-1 ${activeTagFilter === tag ? 'bg-[#0066FF] text-white' : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'}`}
+            >
+              <Tag size={10} />
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Customer List */}
       {isLoading ? (
         <ListSkeleton rows={5} />
@@ -115,11 +144,25 @@ export function CustomersTab({ orgId }: { orgId: string }) {
                     {customer.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[#1A1A2E] text-sm truncate">{customer.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium text-[#1A1A2E] text-sm truncate">{customer.name}</p>
+                      {customer.service_frequency && customer.service_frequency !== 'weekly' && (
+                        <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-[#0066FF]/8 text-[#0066FF] font-medium">
+                          {customer.service_frequency === 'biweekly' ? 'Bi-weekly' : customer.service_frequency === 'monthly' ? 'Monthly' : 'On Call'}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-[#94A3B8] truncate flex items-center gap-1">
                       <MapPin size={10} />
                       {customer.address}, {customer.city}
                     </p>
+                    {(customer.tags ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {customer.tags.map(tag => (
+                          <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#F1F5F9] text-[#64748B]">{tag}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <ChevronRight size={14} className="text-[#CBD5E1] shrink-0" />
                 </div>
@@ -168,6 +211,9 @@ function CustomerFormModal({
   onUpdate: (input: Database['public']['Tables']['customers']['Update'] & { id: string }) => Promise<Customer>;
   isSubmitting: boolean;
 }) {
+  const [tagInput, setTagInput] = useState('');
+  const [tags, setTags] = useState<string[]>(customer?.tags ?? []);
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CustomerInput>({
     resolver: zodResolver(customerSchema),
     values: customer ? {
@@ -178,16 +224,29 @@ function CustomerFormModal({
       city: customer.city,
       state: customer.state,
       zip: customer.zip,
+      service_frequency: customer.service_frequency || 'weekly',
     } : undefined,
   });
 
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase();
+    if (t && !tags.includes(t)) setTags([...tags, t]);
+    setTagInput('');
+  };
+
+  const removeTag = (tag: string) => setTags(tags.filter(t => t !== tag));
+
+  // Reset tags when modal opens/customer changes
+  useState(() => { setTags(customer?.tags ?? []); });
+
   const onSubmit = async (data: CustomerInput) => {
     if (customer) {
-      await onUpdate({ id: customer.id, ...data });
+      await onUpdate({ id: customer.id, ...data, tags });
     } else {
-      await onCreate({ ...data, organization_id: orgId });
+      await onCreate({ ...data, tags, organization_id: orgId });
     }
     reset();
+    setTags([]);
     onClose();
   };
 
@@ -233,6 +292,42 @@ function CustomerFormModal({
             <input {...register('zip')} className={inputClass} placeholder="85001" />
             {errors.zip && <p className="text-[#EF4444] text-xs mt-1">{errors.zip.message}</p>}
           </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[#64748B] mb-1.5">Service Frequency</label>
+          <select {...register('service_frequency')} className={inputClass}>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Bi-weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="on_call">On Call</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[#64748B] mb-1.5">Tags</label>
+          <div className="flex gap-2">
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
+              className={inputClass}
+              placeholder="Add a tag..."
+            />
+            <button type="button" onClick={addTag} className="px-3 py-2.5 bg-[#F1F5F9] text-[#64748B] rounded-lg text-sm font-medium hover:bg-[#E2E8F0] transition shrink-0">
+              <Plus size={14} />
+            </button>
+          </div>
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {tags.map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#0066FF]/8 text-[#0066FF] text-xs font-medium">
+                  {tag}
+                  <button type="button" onClick={() => removeTag(tag)} className="hover:text-[#EF4444] transition">
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#1A1A2E] hover:bg-[#F8FAFC] transition text-sm">
