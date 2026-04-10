@@ -33,7 +33,7 @@ function nearestNeighborOrder(stops: Stop[]): Stop[] {
 }
 
 // 2-opt improvement: iteratively reverse segments to reduce total distance
-function twoOptImprove(stops: Stop[], maxIterations = 100): Stop[] {
+function twoOptImprove(stops: Stop[], maxIterations = 150): Stop[] {
   if (stops.length <= 3) return stops;
 
   const route = [...stops];
@@ -55,7 +55,6 @@ function twoOptImprove(stops: Stop[], maxIterations = 100): Stop[] {
         const newDist = haversine(a.lat, a.lng, c.lat, c.lng) + haversine(b.lat, b.lng, d.lat, d.lng);
 
         if (newDist < currentDist - 0.001) {
-          // Reverse the segment between i+1 and j
           const segment = route.slice(i + 1, j + 1).reverse();
           route.splice(i + 1, segment.length, ...segment);
           improved = true;
@@ -65,6 +64,78 @@ function twoOptImprove(stops: Stop[], maxIterations = 100): Stop[] {
   }
 
   return route;
+}
+
+// Or-opt: try moving single stops to better positions
+function orOptImprove(stops: Stop[], maxIterations = 100): Stop[] {
+  if (stops.length <= 3) return stops;
+
+  const route = [...stops];
+  let improved = true;
+  let iterations = 0;
+
+  while (improved && iterations < maxIterations) {
+    improved = false;
+    iterations++;
+
+    for (let i = 0; i < route.length; i++) {
+      const prevI = i === 0 ? -1 : i - 1;
+      const nextI = i === route.length - 1 ? -1 : i + 1;
+
+      // Cost of removing stop i from its current position
+      let removeCost = 0;
+      if (prevI >= 0) removeCost -= haversine(route[prevI].lat, route[prevI].lng, route[i].lat, route[i].lng);
+      if (nextI >= 0) removeCost -= haversine(route[i].lat, route[i].lng, route[nextI].lat, route[nextI].lng);
+      if (prevI >= 0 && nextI >= 0) removeCost += haversine(route[prevI].lat, route[prevI].lng, route[nextI].lat, route[nextI].lng);
+
+      let bestInsert = -1;
+      let bestGain = 0;
+
+      for (let j = 0; j < route.length - 1; j++) {
+        if (j === prevI || j === i) continue;
+        const insertCost = haversine(route[j].lat, route[j].lng, route[i].lat, route[i].lng)
+          + haversine(route[i].lat, route[i].lng, route[j + 1].lat, route[j + 1].lng)
+          - haversine(route[j].lat, route[j].lng, route[j + 1].lat, route[j + 1].lng);
+        const gain = -(removeCost + insertCost);
+        if (gain > bestGain + 0.001) {
+          bestGain = gain;
+          bestInsert = j;
+        }
+      }
+
+      if (bestInsert >= 0) {
+        const [stop] = route.splice(i, 1);
+        const insertAt = bestInsert >= i ? bestInsert : bestInsert + 1;
+        route.splice(insertAt, 0, stop);
+        improved = true;
+        break; // restart after modification
+      }
+    }
+  }
+
+  return route;
+}
+
+// Try multiple starting points for nearest-neighbor and return the best
+function bestNearestNeighbor(stops: Stop[]): Stop[] {
+  if (stops.length <= 3) return nearestNeighborOrder(stops);
+
+  const maxStarts = Math.min(stops.length, 5);
+  let bestRoute = nearestNeighborOrder(stops);
+  let bestDist = totalDistance(bestRoute);
+
+  for (let s = 1; s < maxStarts; s++) {
+    // Rotate starting point
+    const rotated = [...stops.slice(s), ...stops.slice(0, s)];
+    const candidate = nearestNeighborOrder(rotated);
+    const dist = totalDistance(candidate);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestRoute = candidate;
+    }
+  }
+
+  return bestRoute;
 }
 
 // Calculate total route distance in miles
@@ -124,11 +195,14 @@ export async function POST(request: Request) {
   // Calculate original distance
   const originalDist = totalDistance(stopsWithCoords);
 
-  // Step 1: Nearest-neighbor initial solution
-  const nnOrder = nearestNeighborOrder(stopsWithCoords);
+  // Step 1: Best nearest-neighbor from multiple starting points
+  const nnOrder = bestNearestNeighbor(stopsWithCoords);
 
   // Step 2: 2-opt improvement pass
-  const optimized = twoOptImprove(nnOrder);
+  const twoOpted = twoOptImprove(nnOrder);
+
+  // Step 3: Or-opt single-stop relocation
+  const optimized = orOptImprove(twoOpted);
 
   const optimizedDist = totalDistance(optimized);
   const savedMiles = Math.max(0, originalDist - optimizedDist);

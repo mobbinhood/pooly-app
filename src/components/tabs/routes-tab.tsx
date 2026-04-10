@@ -15,6 +15,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -34,6 +35,7 @@ export function RoutesTab({ orgId }: { orgId: string }) {
   const [addStopRoute, setAddStopRoute] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [optimizing, setOptimizing] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const handleOptimizeRoute = async (routeId: string) => {
     setOptimizing(routeId);
@@ -49,7 +51,7 @@ export function RoutesTab({ orgId }: { orgId: string }) {
           ? `Optimized — saved ${data.saved_miles} mi (${data.total_miles} mi total)`
           : data.message || 'Route optimized';
         toast.success(msg);
-        window.location.reload();
+        await queryClient.invalidateQueries({ queryKey: ['routes'] });
       } else {
         toast.error(data.error || 'Failed to optimize');
       }

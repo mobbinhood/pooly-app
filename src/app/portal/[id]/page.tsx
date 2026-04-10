@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, ArrowRight } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, ArrowRight } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
 
 async function getSupabase() {
@@ -51,7 +51,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
 
   if (!customer) notFound();
 
-  const [{ data: serviceLogs }, { data: routeStops }, { data: invoices }] = await Promise.all([
+  const [{ data: serviceLogs }, { data: routeStops }, { data: invoices }, { data: workOrders }] = await Promise.all([
     supabase
       .from('service_logs')
       .select('id, service_date, chlorine_level, ph_level, alkalinity, cya, calcium, salt_level, water_temp, chemicals_added, equipment_status, notes, time_on_site_minutes, technician_id, users:technician_id(name)')
@@ -68,6 +68,13 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
       .eq('customer_id', id)
       .order('issued_date', { ascending: false })
       .limit(10),
+    supabase
+      .from('work_orders')
+      .select('id, title, description, status, priority, scheduled_date, created_at')
+      .eq('customer_id', id)
+      .in('status', ['open', 'in_progress'])
+      .order('created_at', { ascending: false })
+      .limit(5),
   ]);
 
   const frequencyLabel: Record<string, string> = {
@@ -214,6 +221,56 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             )}
           </section>
 
+          {/* Active Work Orders */}
+          {workOrders && workOrders.length > 0 && (
+            <section>
+              <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
+                <Wrench size={16} className="text-[#F59E0B]" />
+                Active Work Orders
+              </h3>
+              <div className="space-y-2">
+                {workOrders.map((wo) => {
+                  const priorityColors: Record<string, string> = {
+                    urgent: 'bg-red-50 text-red-600 border-red-200',
+                    high: 'bg-amber-50 text-amber-600 border-amber-200',
+                    normal: 'bg-blue-50 text-[#0066FF] border-blue-200',
+                    low: 'bg-slate-50 text-slate-500 border-slate-200',
+                  };
+                  const statusLabels: Record<string, string> = {
+                    open: 'Open',
+                    in_progress: 'In Progress',
+                  };
+                  return (
+                    <div key={wo.id} className="bg-white rounded-xl border border-[#E2E8F0] px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[#1A1A2E]">{wo.title}</p>
+                          {wo.description && (
+                            <p className="text-xs text-[#64748B] mt-0.5 line-clamp-2">{wo.description}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${priorityColors[wo.priority] || priorityColors.normal}`}>
+                            {wo.priority}
+                          </span>
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${wo.status === 'in_progress' ? 'bg-[#0066FF]/10 text-[#0066FF]' : 'bg-slate-100 text-slate-500'}`}>
+                            {statusLabels[wo.status] || wo.status}
+                          </span>
+                        </div>
+                      </div>
+                      {wo.scheduled_date && (
+                        <p className="text-xs text-[#94A3B8] mt-1.5 flex items-center gap-1">
+                          <Calendar size={11} />
+                          Scheduled: {formatDate(wo.scheduled_date)}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Billing & Invoices */}
           <section>
             <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
@@ -308,11 +365,12 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
               </div>
             ) : (
               <div className="space-y-3">
-                {serviceLogs.map((log) => {
+                {serviceLogs.map((log, logIndex) => {
                   const tech = log.users as unknown as { name: string } | null;
                   const chemicals = (log.chemicals_added ?? []) as ChemicalAdded[];
                   const equipment = (log.equipment_status ?? {}) as EquipmentStatus;
                   const equipmentEntries = Object.entries(equipment).filter(([, v]) => v);
+                  const prevLog = serviceLogs[logIndex + 1] ?? null;
 
                   return (
                     <div key={log.id} className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
@@ -331,25 +389,25 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                       <div className="px-4 py-3">
                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                           {log.chlorine_level != null && (
-                            <ReadingBadge label="Chlorine" value={log.chlorine_level} unit="ppm" />
+                            <ReadingBadge label="Chlorine" value={log.chlorine_level} unit="ppm" prevValue={prevLog?.chlorine_level} />
                           )}
                           {log.ph_level != null && (
-                            <ReadingBadge label="pH" value={log.ph_level} />
+                            <ReadingBadge label="pH" value={log.ph_level} prevValue={prevLog?.ph_level} />
                           )}
                           {log.alkalinity != null && (
-                            <ReadingBadge label="Alkalinity" value={log.alkalinity} unit="ppm" />
+                            <ReadingBadge label="Alkalinity" value={log.alkalinity} unit="ppm" prevValue={prevLog?.alkalinity} />
                           )}
                           {log.cya != null && (
-                            <ReadingBadge label="CYA" value={log.cya} unit="ppm" />
+                            <ReadingBadge label="CYA" value={log.cya} unit="ppm" prevValue={prevLog?.cya} />
                           )}
                           {log.calcium != null && (
-                            <ReadingBadge label="Calcium" value={log.calcium} unit="ppm" />
+                            <ReadingBadge label="Calcium" value={log.calcium} unit="ppm" prevValue={prevLog?.calcium} />
                           )}
                           {log.salt_level != null && (
-                            <ReadingBadge label="Salt" value={log.salt_level} unit="ppm" />
+                            <ReadingBadge label="Salt" value={log.salt_level} unit="ppm" prevValue={prevLog?.salt_level} />
                           )}
                           {log.water_temp != null && (
-                            <ReadingBadge label="Temp" value={log.water_temp} unit="°F" />
+                            <ReadingBadge label="Temp" value={log.water_temp} unit="°F" prevValue={prevLog?.water_temp} />
                           )}
                         </div>
                       </div>
@@ -411,12 +469,21 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
   );
 }
 
-function ReadingBadge({ label, value, unit }: { label: string; value: number; unit?: string }) {
+function ReadingBadge({ label, value, unit, prevValue }: { label: string; value: number; unit?: string; prevValue?: number | null }) {
+  const trend = prevValue != null ? value - prevValue : null;
   return (
     <div className="bg-[#F8FAFC] rounded-lg px-2.5 py-2 text-center">
       <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-semibold text-[#1A1A2E] tabular-nums">
+      <p className="text-sm font-semibold text-[#1A1A2E] tabular-nums flex items-center justify-center gap-0.5">
         {value}{unit && <span className="text-[10px] font-normal text-[#94A3B8] ml-0.5">{unit}</span>}
+        {trend != null && Math.abs(trend) > 0.01 && (
+          trend > 0
+            ? <TrendingUp size={10} className="text-amber-500 ml-0.5" />
+            : <TrendingDown size={10} className="text-blue-500 ml-0.5" />
+        )}
+        {trend != null && Math.abs(trend) <= 0.01 && (
+          <Minus size={10} className="text-emerald-500 ml-0.5" />
+        )}
       </p>
     </div>
   );

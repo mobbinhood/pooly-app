@@ -88,12 +88,12 @@ export default function AppPage() {
     { id: 'customers' as Tab, icon: Users, label: 'Customers' },
     { id: 'routes' as Tab, icon: MapPin, label: 'Routes' },
     { id: 'invoices' as Tab, icon: FileText, label: 'Invoices' },
+    { id: 'work-orders' as Tab, icon: Wrench, label: 'Work Orders' },
   ];
 
   const moreMenuTabs = [
-    { id: 'work-orders' as Tab, icon: Wrench, label: 'Work Orders', featured: true },
     { id: 'inventory' as Tab, icon: Package, label: 'Inventory', featured: true },
-    { id: 'calendar' as Tab, icon: CalendarDays, label: 'Calendar' },
+    { id: 'calendar' as Tab, icon: CalendarDays, label: 'Calendar', featured: true },
     { id: 'broadcast' as Tab, icon: Send, label: 'Broadcast' },
     { id: 'reports' as Tab, icon: FileDown, label: 'Reports' },
     { id: 'discounts' as Tab, icon: Tag, label: 'Discounts' },
@@ -225,7 +225,7 @@ export default function AppPage() {
               <button
                 key={tab.id}
                 onClick={() => { setActiveTab(tab.id); setShowMore(false); }}
-                className="relative flex flex-col items-center py-1.5 px-4 rounded-lg transition-all"
+                className="relative flex flex-col items-center py-1.5 px-2.5 rounded-lg transition-all"
               >
                 {isActive && (
                   <motion.div
@@ -247,7 +247,7 @@ export default function AppPage() {
           {/* More button */}
           <button
             onClick={() => setShowMore(!showMore)}
-            className="relative flex flex-col items-center py-1.5 px-4 rounded-lg transition-all"
+            className="relative flex flex-col items-center py-1.5 px-2.5 rounded-lg transition-all"
           >
             {isMoreTab && (
               <motion.div
