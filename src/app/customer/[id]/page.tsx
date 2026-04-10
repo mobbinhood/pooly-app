@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, use } from 'react';
-import { useCustomer, useServiceLogs, useInvoices } from '@/lib/hooks';
+import { useCustomer, useServiceLogs, useInvoices, useWorkOrders, useRoutes } from '@/lib/hooks';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -29,6 +29,8 @@ import {
   CheckCircle2,
   Tag,
   Repeat,
+  DollarSign,
+  CalendarClock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -56,7 +58,31 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const { data: serviceLogs } = useServiceLogs(id);
   const { data: orgId } = useOrgId();
   const { data: invoices } = useInvoices(orgId ?? undefined, id);
+  const { data: allWorkOrders } = useWorkOrders(orgId ?? undefined);
+  const { data: allRoutes } = useRoutes(orgId ?? undefined);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
+
+  const customerWorkOrders = (allWorkOrders ?? []).filter(
+    (wo) => wo.customer_id === id && (wo.status === 'open' || wo.status === 'in_progress')
+  );
+
+  // Find next scheduled service day from routes
+  const customerRoutes = (allRoutes ?? []).filter(r =>
+    r.route_stops?.some((s: { customers?: { name: string } }) => {
+      // Match by customer id through route_stops
+      return (r.route_stops as unknown as { customer_id: string }[])?.some(
+        (stop: { customer_id: string }) => stop.customer_id === id
+      );
+    })
+  );
+
+  // Calculate outstanding balance
+  const outstandingCents = (invoices ?? [])
+    .filter(inv => inv.status === 'sent' || inv.status === 'overdue')
+    .reduce((sum, inv) => sum + inv.total_cents, 0);
+  const paidCents = (invoices ?? [])
+    .filter(inv => inv.status === 'paid')
+    .reduce((sum, inv) => sum + inv.total_cents, 0);
 
   const pools = (customer as { pools?: Pool[] } | undefined)?.pools ?? [];
   const logs = serviceLogs?.slice(0, 10) ?? [];
@@ -157,6 +183,66 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
               <span className="text-xs font-medium text-[#1A1A2E]">Create Invoice</span>
             </button>
           </div>
+
+          {/* Balance & Next Service Summary */}
+          {(outstandingCents > 0 || paidCents > 0 || lastServiceDate) && (
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 text-center">
+                <DollarSign size={14} className="text-[#F59E0B] mx-auto mb-1" />
+                <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Outstanding</p>
+                <p className={`text-sm font-bold ${outstandingCents > 0 ? 'text-[#F59E0B]' : 'text-[#10B981]'}`}>
+                  ${(outstandingCents / 100).toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 text-center">
+                <CheckCircle2 size={14} className="text-[#10B981] mx-auto mb-1" />
+                <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Collected</p>
+                <p className="text-sm font-bold text-[#10B981]">
+                  ${(paidCents / 100).toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 text-center">
+                <CalendarClock size={14} className="text-[#0066FF] mx-auto mb-1" />
+                <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Last Service</p>
+                <p className="text-sm font-bold text-[#1A1A2E]">
+                  {lastServiceDate ? format(new Date(lastServiceDate), 'MMM d') : '—'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Active Work Orders */}
+          {customerWorkOrders.length > 0 && (
+            <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#F1F5F9]">
+                <h2 className="text-sm font-semibold text-[#1A1A2E]">
+                  Active Work Orders <span className="text-[#F59E0B] font-normal">({customerWorkOrders.length})</span>
+                </h2>
+              </div>
+              <div className="divide-y divide-[#F1F5F9]">
+                {customerWorkOrders.map((wo) => (
+                  <div key={wo.id} className="px-4 py-3 flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      wo.status === 'in_progress' ? 'bg-[#F59E0B]/8' : 'bg-[#0066FF]/8'
+                    }`}>
+                      <Wrench size={14} className={wo.status === 'in_progress' ? 'text-[#F59E0B]' : 'text-[#0066FF]'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#1A1A2E] truncate">{wo.title}</p>
+                      <p className="text-xs text-[#94A3B8] flex items-center gap-1">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${
+                          wo.status === 'in_progress' ? 'bg-[#F59E0B]' : 'bg-[#0066FF]'
+                        }`} />
+                        {wo.status === 'in_progress' ? 'In Progress' : 'Open'}
+                        {wo.priority === 'urgent' && <span className="text-[#EF4444] font-medium ml-1">· Urgent</span>}
+                        {wo.priority === 'high' && <span className="text-[#F59E0B] font-medium ml-1">· High</span>}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Contact Info */}
           <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">

@@ -12,7 +12,7 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle } from 'lucide-react';
+import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -37,6 +37,21 @@ function calcRouteDistance(stops: { customers: { latitude?: number | null; longi
     dist += haversine(coords[i].lat, coords[i].lng, coords[i + 1].lat, coords[i + 1].lng);
   }
   return Math.round(dist * 10) / 10;
+}
+
+// Estimate drive time: ~25 mph average for local pool service routes + 5 min per stop for parking/arrival
+function estimateDriveMinutes(distMiles: number, stopCount: number): number {
+  return Math.round((distMiles / 25) * 60) + (stopCount * 5);
+}
+
+// Build Apple Maps multi-stop directions URL
+function buildMapsUrl(stops: { customers: { address?: string; latitude?: number | null; longitude?: number | null } }[]): string | null {
+  const coords = stops
+    .filter(s => s.customers?.latitude && s.customers?.longitude)
+    .map(s => ({ lat: s.customers.latitude!, lng: s.customers.longitude! }));
+  if (coords.length < 2) return null;
+  const waypoints = coords.map(c => `${c.lat},${c.lng}`);
+  return `https://maps.apple.com/?daddr=${waypoints.join('&daddr=')}`;
 }
 
 export function RoutesTab({ orgId }: { orgId: string }) {
@@ -67,9 +82,12 @@ export function RoutesTab({ orgId }: { orgId: string }) {
       });
       const data = await res.json();
       if (res.ok) {
+        const pctSaved = data.saved_miles > 0 && data.total_miles > 0
+          ? Math.round((data.saved_miles / (data.total_miles + data.saved_miles)) * 100)
+          : 0;
         let msg = data.saved_miles > 0
-          ? `Optimized — saved ${data.saved_miles} mi (${data.total_miles} mi total)`
-          : data.message || 'Route optimized';
+          ? `Optimized — saved ${data.saved_miles} mi (${pctSaved}% shorter, ${data.total_miles} mi total)`
+          : data.message || 'Route already optimal';
         if (data.geocoded > 0) msg += ` · ${data.geocoded} address${data.geocoded > 1 ? 'es' : ''} geocoded`;
         toast.success(msg);
         await queryClient.invalidateQueries({ queryKey: ['routes'] });
@@ -142,6 +160,8 @@ export function RoutesTab({ orgId }: { orgId: string }) {
             const stops = [...(route.route_stops ?? [])].sort((a, b) => a.stop_order - b.stop_order);
             const totalTime = stops.reduce((sum, s) => sum + s.estimated_duration_minutes, 0);
             const routeDist = calcRouteDistance(stops);
+            const driveMinutes = routeDist != null ? estimateDriveMinutes(routeDist, stops.length) : null;
+            const mapsUrl = buildMapsUrl(stops);
             const ungeocodedCount = stops.filter(s => !s.customers?.latitude || !s.customers?.longitude).length;
 
             return (
@@ -162,7 +182,8 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                     <p className="text-xs text-[#64748B]">
                       {stops.length} stops
                       {totalTime > 0 && <> · <Clock size={10} className="inline" /> ~{Math.round(totalTime / 60)}h {totalTime % 60}m</>}
-                      {routeDist != null && <> · <Route size={10} className="inline" /> {routeDist} mi{stops.length > 1 && <> ({(routeDist / (stops.length - 1)).toFixed(1)} mi/leg)</>}</>}
+                      {routeDist != null && <> · <Route size={10} className="inline" /> {routeDist} mi</>}
+                      {driveMinutes != null && <> · <Car size={10} className="inline" /> ~{driveMinutes >= 60 ? `${Math.floor(driveMinutes / 60)}h ${driveMinutes % 60}m` : `${driveMinutes}m`} drive</>}
                       {route.users?.name && <> · {route.users.name}</>}
                     </p>
                   </div>
@@ -235,6 +256,17 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                             <UserPlus size={14} />
                             Add Customer
                           </button>
+                          {mapsUrl && (
+                            <a
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="py-2.5 px-4 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC] transition flex items-center justify-center gap-2"
+                            >
+                              <Navigation size={14} />
+                              Maps
+                            </a>
+                          )}
                           {stops.length >= 2 && (
                             <button
                               onClick={() => handleOptimizeRoute(route.id)}
