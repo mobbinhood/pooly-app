@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, ArrowRight, Waves, Thermometer, Shield } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, ArrowRight, Waves, Thermometer, Shield, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
 
 async function getSupabase() {
@@ -57,7 +57,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
       .select('id, service_date, chlorine_level, ph_level, alkalinity, cya, calcium, salt_level, water_temp, chemicals_added, equipment_status, notes, time_on_site_minutes, technician_id, users:technician_id(name)')
       .eq('customer_id', id)
       .order('service_date', { ascending: false })
-      .limit(20),
+      .limit(30),
     supabase
       .from('route_stops')
       .select('id, stop_order, estimated_duration_minutes, routes:route_id(name, day_of_week, users:technician_id(name))')
@@ -234,6 +234,85 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             );
           })()}
 
+          {/* Water Quality Trends (last 10 readings) */}
+          {serviceLogs && serviceLogs.length >= 3 && (() => {
+            const trendLogs = [...serviceLogs].reverse().slice(-10);
+            const metrics = [
+              { key: 'ph_level' as const, label: 'pH', color: '#6366F1', min: 7.0, max: 8.0, idealMin: 7.2, idealMax: 7.6 },
+              { key: 'chlorine_level' as const, label: 'Chlorine', color: '#0066FF', min: 0, max: 5, idealMin: 1, idealMax: 3 },
+              { key: 'alkalinity' as const, label: 'Alkalinity', color: '#10B981', min: 40, max: 180, idealMin: 80, idealMax: 120 },
+              { key: 'cya' as const, label: 'CYA', color: '#F59E0B', min: 0, max: 80, idealMin: 30, idealMax: 50 },
+            ].filter(m => trendLogs.some(l => l[m.key] != null));
+
+            if (metrics.length === 0) return null;
+
+            return (
+              <section>
+                <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
+                  <BarChart3 size={16} className="text-[#0066FF]" />
+                  Water Quality Trends
+                  <span className="ml-auto text-[10px] text-[#94A3B8]">Last {trendLogs.length} readings</span>
+                </h3>
+                <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden divide-y divide-[#F1F5F9]">
+                  {metrics.map((metric) => {
+                    const points = trendLogs
+                      .map(l => l[metric.key])
+                      .filter((v): v is number => v != null);
+                    if (points.length < 2) return null;
+
+                    const range = metric.max - metric.min;
+                    const svgW = 200;
+                    const svgH = 40;
+                    const stepX = svgW / (points.length - 1);
+                    const pathD = points
+                      .map((v, i) => {
+                        const x = i * stepX;
+                        const y = svgH - ((v - metric.min) / range) * svgH;
+                        return `${i === 0 ? 'M' : 'L'}${x},${Math.max(2, Math.min(svgH - 2, y))}`;
+                      })
+                      .join(' ');
+                    // Ideal zone band
+                    const idealTop = svgH - ((metric.idealMax - metric.min) / range) * svgH;
+                    const idealBottom = svgH - ((metric.idealMin - metric.min) / range) * svgH;
+                    const latest = points[points.length - 1];
+                    const inRange = latest >= metric.idealMin && latest <= metric.idealMax;
+
+                    return (
+                      <div key={metric.key} className="px-4 py-3 flex items-center gap-3">
+                        <div className="w-16 shrink-0">
+                          <p className="text-xs font-medium text-[#1A1A2E]">{metric.label}</p>
+                          <p className={`text-sm font-bold tabular-nums ${inRange ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {latest}
+                          </p>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-10" preserveAspectRatio="none">
+                            {/* Ideal zone */}
+                            <rect x="0" y={Math.max(0, idealTop)} width={svgW} height={Math.max(1, idealBottom - idealTop)} fill={metric.color} opacity="0.08" rx="2" />
+                            {/* Trend line */}
+                            <path d={pathD} fill="none" stroke={metric.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            {/* Latest point */}
+                            <circle
+                              cx={(points.length - 1) * stepX}
+                              cy={Math.max(2, Math.min(svgH - 2, svgH - ((latest - metric.min) / range) * svgH))}
+                              r="3"
+                              fill={metric.color}
+                            />
+                          </svg>
+                        </div>
+                        <div className="w-12 text-right shrink-0">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${inRange ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                            {inRange ? 'Good' : 'Low'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })()}
+
           {/* Pool Details */}
           {pools && pools.length > 0 && (
             <section>
@@ -400,6 +479,46 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                   </div>
                 </div>
 
+                {/* Monthly Spending Summary */}
+                {(() => {
+                  const monthMap = new Map<string, { total: number; count: number }>();
+                  invoices.filter(i => i.status === 'paid').forEach(inv => {
+                    const d = new Date(inv.issued_date + 'T00:00:00');
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    const existing = monthMap.get(key) ?? { total: 0, count: 0 };
+                    monthMap.set(key, { total: existing.total + inv.total_cents, count: existing.count + 1 });
+                  });
+                  const months = [...monthMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-4);
+                  if (months.length < 2) return null;
+                  const maxTotal = Math.max(...months.map(([, v]) => v.total));
+
+                  return (
+                    <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 mb-3">
+                      <p className="text-xs font-medium text-[#64748B] mb-3">Monthly Spending</p>
+                      <div className="flex items-end gap-2 h-20">
+                        {months.map(([month, data]) => {
+                          const heightPct = maxTotal > 0 ? (data.total / maxTotal) * 100 : 0;
+                          const label = new Date(month + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short' });
+                          return (
+                            <div key={month} className="flex-1 flex flex-col items-center gap-1">
+                              <span className="text-[10px] font-medium text-[#1A1A2E] tabular-nums">
+                                ${(data.total / 100).toFixed(0)}
+                              </span>
+                              <div className="w-full bg-[#F1F5F9] rounded-t-sm overflow-hidden" style={{ height: '48px' }}>
+                                <div
+                                  className="w-full bg-[#0066FF]/20 rounded-t-sm mt-auto"
+                                  style={{ height: `${heightPct}%`, marginTop: `${100 - heightPct}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-[#94A3B8]">{label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Invoice List */}
                 <div className="space-y-2">
                   {invoices.map((invoice) => {
@@ -453,14 +572,42 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
               <Clock size={16} className="text-[#0066FF]" />
               Service History
+              {serviceLogs && serviceLogs.length > 0 && (
+                <span className="ml-auto text-[10px] text-[#94A3B8]">{serviceLogs.length} visits</span>
+              )}
             </h3>
+            {/* Service Stats */}
+            {serviceLogs && serviceLogs.length >= 2 && (() => {
+              const avgTimeOnSite = serviceLogs
+                .filter(l => l.time_on_site_minutes)
+                .reduce((sum, l, _, arr) => sum + (l.time_on_site_minutes ?? 0) / arr.length, 0);
+              const dates = serviceLogs.map(l => new Date(l.service_date + 'T00:00:00').getTime());
+              const intervals: number[] = [];
+              for (let i = 0; i < dates.length - 1; i++) {
+                intervals.push((dates[i] - dates[i + 1]) / (1000 * 60 * 60 * 24));
+              }
+              const avgInterval = intervals.length > 0 ? intervals.reduce((a, b) => a + b, 0) / intervals.length : 0;
+
+              return (
+                <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 mb-3 grid grid-cols-2 divide-x divide-[#F1F5F9]">
+                  <div className="text-center">
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Avg. Visit</p>
+                    <p className="text-sm font-semibold text-[#1A1A2E]">{Math.round(avgTimeOnSite)} min</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Avg. Interval</p>
+                    <p className="text-sm font-semibold text-[#1A1A2E]">{Math.round(avgInterval)} days</p>
+                  </div>
+                </div>
+              );
+            })()}
             {!serviceLogs?.length ? (
               <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 text-center">
                 <p className="text-sm text-[#94A3B8]">No service history yet</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {serviceLogs.map((log, logIndex) => {
+                {serviceLogs.slice(0, 15).map((log, logIndex) => {
                   const tech = log.users as unknown as { name: string } | null;
                   const chemicals = (log.chemicals_added ?? []) as ChemicalAdded[];
                   const equipment = (log.equipment_status ?? {}) as EquipmentStatus;
@@ -551,6 +698,11 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                     </div>
                   );
                 })}
+                {serviceLogs.length > 15 && (
+                  <p className="text-xs text-[#94A3B8] text-center pt-2">
+                    Showing 15 of {serviceLogs.length} visits
+                  </p>
+                )}
               </div>
             )}
           </section>

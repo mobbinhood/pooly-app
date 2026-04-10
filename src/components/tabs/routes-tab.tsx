@@ -67,9 +67,10 @@ export function RoutesTab({ orgId }: { orgId: string }) {
       });
       const data = await res.json();
       if (res.ok) {
-        const msg = data.saved_miles > 0
+        let msg = data.saved_miles > 0
           ? `Optimized — saved ${data.saved_miles} mi (${data.total_miles} mi total)`
           : data.message || 'Route optimized';
+        if (data.geocoded > 0) msg += ` · ${data.geocoded} address${data.geocoded > 1 ? 'es' : ''} geocoded`;
         toast.success(msg);
         await queryClient.invalidateQueries({ queryKey: ['routes'] });
       } else {
@@ -161,7 +162,7 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                     <p className="text-xs text-[#64748B]">
                       {stops.length} stops
                       {totalTime > 0 && <> · <Clock size={10} className="inline" /> ~{Math.round(totalTime / 60)}h {totalTime % 60}m</>}
-                      {routeDist != null && <> · <Route size={10} className="inline" /> {routeDist} mi</>}
+                      {routeDist != null && <> · <Route size={10} className="inline" /> {routeDist} mi{stops.length > 1 && <> ({(routeDist / (stops.length - 1)).toFixed(1)} mi/leg)</>}</>}
                       {route.users?.name && <> · {route.users.name}</>}
                     </p>
                   </div>
@@ -199,10 +200,29 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                         ) : (
                           <DndContext collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(route.id, e)}>
                             <SortableContext items={stops.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                              <div className="space-y-2">
-                                {stops.map((stop, idx) => (
-                                  <SortableStop key={stop.id} stop={stop} index={idx} onRemove={() => removeStop.mutate(stop.id)} />
-                                ))}
+                              <div className="space-y-1">
+                                {stops.map((stop, idx) => {
+                                  // Calculate distance to next stop
+                                  let legDist: number | null = null;
+                                  if (idx < stops.length - 1) {
+                                    const cur = stop.customers;
+                                    const next = stops[idx + 1].customers;
+                                    if (cur?.latitude && cur?.longitude && next?.latitude && next?.longitude) {
+                                      legDist = Math.round(haversine(cur.latitude, cur.longitude, next.latitude, next.longitude) * 10) / 10;
+                                    }
+                                  }
+                                  return (
+                                    <div key={stop.id}>
+                                      <SortableStop stop={stop} index={idx} onRemove={() => removeStop.mutate(stop.id)} />
+                                      {legDist != null && (
+                                        <div className="flex items-center gap-2 pl-10 py-0.5">
+                                          <div className="w-px h-3 bg-[#E2E8F0]" />
+                                          <span className="text-[10px] text-[#94A3B8] tabular-nums">{legDist} mi</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </SortableContext>
                           </DndContext>

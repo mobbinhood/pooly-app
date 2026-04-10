@@ -157,21 +157,55 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
 
 function toRad(deg: number) { return deg * Math.PI / 180; }
 
+async function geocodeAddress(address: string, city: string, state: string, zip: string | null): Promise<{ lat: number; lng: number } | null> {
+  const query = encodeURIComponent(`${address}, ${city}, ${state} ${zip || ''}, USA`);
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'Pooly Pool Service App' } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.length === 0) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { route_id } = await request.json();
 
   if (!route_id) return NextResponse.json({ error: 'route_id required' }, { status: 400 });
 
-  // Get stops with customer coordinates
+  // Get stops with customer coordinates and address for auto-geocoding
   const { data: stops, error } = await supabase
     .from('route_stops')
-    .select('id, stop_order, customers(latitude, longitude)')
+    .select('id, stop_order, customers(id, latitude, longitude, address, city, state, zip)')
     .eq('route_id', route_id)
     .order('stop_order', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!stops?.length) return NextResponse.json({ message: 'No stops to optimize' });
+
+  // Auto-geocode missing coordinates
+  let geocodedCount = 0;
+  for (const s of stops) {
+    const cust = s.customers as unknown as { id: string; latitude: number | null; longitude: number | null; address: string; city: string; state: string; zip: string | null } | null;
+    if (!cust || (cust.latitude && cust.longitude)) continue;
+    if (!cust.address || !cust.city || !cust.state) continue;
+
+    const coords = await geocodeAddress(cust.address, cust.city, cust.state, cust.zip);
+    if (coords) {
+      await supabase.from('customers').update({ latitude: coords.lat, longitude: coords.lng }).eq('id', cust.id);
+      cust.latitude = coords.lat;
+      cust.longitude = coords.lng;
+      geocodedCount++;
+      // Rate limit: 1 req/sec for Nominatim
+      if (geocodedCount < 10) await new Promise(r => setTimeout(r, 1100));
+    }
+  }
 
   // Filter stops with coordinates
   const stopsWithCoords = stops
@@ -213,10 +247,22 @@ export async function POST(request: Request) {
   );
   await Promise.all(updates);
 
+  // Calculate per-leg distances
+  const legs: { from: string; to: string; miles: number }[] = [];
+  for (let i = 0; i < optimized.length - 1; i++) {
+    legs.push({
+      from: optimized[i].id,
+      to: optimized[i + 1].id,
+      miles: Math.round(haversine(optimized[i].lat, optimized[i].lng, optimized[i + 1].lat, optimized[i + 1].lng) * 10) / 10,
+    });
+  }
+
   return NextResponse.json({
     message: `Route optimized — saved ${savedMiles.toFixed(1)} miles`,
     stops: optimized.length,
     total_miles: Math.round(optimizedDist * 10) / 10,
     saved_miles: Math.round(savedMiles * 10) / 10,
+    geocoded: geocodedCount,
+    legs,
   });
 }
