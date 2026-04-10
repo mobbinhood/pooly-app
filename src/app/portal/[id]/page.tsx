@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
 
 async function getSupabase() {
@@ -51,7 +51,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
 
   if (!customer) notFound();
 
-  const [{ data: serviceLogs }, { data: routeStops }] = await Promise.all([
+  const [{ data: serviceLogs }, { data: routeStops }, { data: invoices }] = await Promise.all([
     supabase
       .from('service_logs')
       .select('id, service_date, chlorine_level, ph_level, alkalinity, cya, calcium, salt_level, water_temp, chemicals_added, equipment_status, notes, time_on_site_minutes, technician_id, users:technician_id(name)')
@@ -62,6 +62,12 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
       .from('route_stops')
       .select('id, stop_order, estimated_duration_minutes, routes:route_id(name, day_of_week, users:technician_id(name))')
       .eq('customer_id', id),
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, issued_date, due_date, total_cents, status, invoice_items(id, description, quantity, unit_price_cents, total_cents)')
+      .eq('customer_id', id)
+      .order('issued_date', { ascending: false })
+      .limit(10),
   ]);
 
   const frequencyLabel: Record<string, string> = {
@@ -126,6 +132,82 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                   );
                 })}
               </div>
+            )}
+          </section>
+
+          {/* Billing & Invoices */}
+          <section>
+            <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
+              <DollarSign size={16} className="text-[#0066FF]" />
+              Billing & Invoices
+            </h3>
+            {!invoices?.length ? (
+              <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 text-center">
+                <p className="text-sm text-[#94A3B8]">No invoices at this time</p>
+              </div>
+            ) : (
+              <>
+                {/* Billing Summary */}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 text-center">
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Outstanding</p>
+                    <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">
+                      ${(invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.total_cents, 0) / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 text-center">
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Paid</p>
+                    <p className="text-lg font-bold text-[#10B981] mt-0.5">
+                      ${(invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_cents, 0) / 100).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Invoice List */}
+                <div className="space-y-2">
+                  {invoices.map((invoice) => {
+                    const statusConfig: Record<string, { label: string; color: string; Icon: typeof FileText }> = {
+                      draft: { label: 'Draft', color: 'bg-slate-100 text-slate-500', Icon: FileText },
+                      sent: { label: 'Sent', color: 'bg-[#0066FF]/10 text-[#0066FF]', Icon: Send },
+                      paid: { label: 'Paid', color: 'bg-emerald-50 text-emerald-600', Icon: CheckCircle2 },
+                      overdue: { label: 'Overdue', color: 'bg-red-50 text-red-500', Icon: AlertCircle },
+                      cancelled: { label: 'Cancelled', color: 'bg-slate-100 text-slate-400', Icon: FileText },
+                    };
+                    const cfg = statusConfig[invoice.status] ?? statusConfig.draft;
+
+                    return (
+                      <div key={invoice.id} className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+                        <div className="px-4 py-3 flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-[#1A1A2E]">{invoice.invoice_number}</p>
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cfg.color}`}>
+                                {cfg.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-[#64748B] mt-0.5">
+                              Issued {formatDate(invoice.issued_date)} · Due {formatDate(invoice.due_date)}
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-[#1A1A2E]">
+                            ${(invoice.total_cents / 100).toFixed(2)}
+                          </p>
+                        </div>
+                        {invoice.invoice_items && invoice.invoice_items.length > 0 && (
+                          <div className="border-t border-[#F1F5F9] px-4 py-2">
+                            {invoice.invoice_items.map((item) => (
+                              <div key={item.id} className="flex items-center justify-between py-1 text-xs text-[#64748B]">
+                                <span>{item.description}</span>
+                                <span className="tabular-nums">{item.quantity} x ${(item.unit_price_cents / 100).toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </section>
 

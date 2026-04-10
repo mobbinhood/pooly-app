@@ -5,7 +5,7 @@ import { useDashboardStats, useServiceLogs, useUser, useCompletedStops, useToggl
 import { StatCard } from '@/components/ui/stat-card';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { ServiceLogModal } from './service-log-modal';
-import { Calendar, CheckCircle, AlertTriangle, Clock, MapPin, Droplets, ClipboardList, Check, Navigation, Calculator, DollarSign, TrendingUp, Users as UsersIcon } from 'lucide-react';
+import { Calendar, CheckCircle, AlertTriangle, Clock, MapPin, Droplets, ClipboardList, Check, Navigation, Calculator, DollarSign, TrendingUp, Users as UsersIcon, FileText, Wrench, Package } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { StandaloneDosingCalculator } from '@/components/chemical-calculator';
 import { motion } from 'framer-motion';
@@ -171,6 +171,33 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
             <ClipboardList size={18} className="text-[#10B981]" />
           </div>
           <span className="text-xs font-medium text-[#1A1A2E]">Start Service</span>
+        </button>
+        <button
+          onClick={() => onNavigate?.('invoices')}
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
+        >
+          <div className="w-10 h-10 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+            <FileText size={18} className="text-[#0066FF]" />
+          </div>
+          <span className="text-xs font-medium text-[#1A1A2E]">Invoices</span>
+        </button>
+        <button
+          onClick={() => onNavigate?.('work-orders')}
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
+        >
+          <div className="w-10 h-10 bg-[#F59E0B]/8 rounded-lg flex items-center justify-center">
+            <Wrench size={18} className="text-[#F59E0B]" />
+          </div>
+          <span className="text-xs font-medium text-[#1A1A2E]">Work Orders</span>
+        </button>
+        <button
+          onClick={() => onNavigate?.('inventory')}
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
+        >
+          <div className="w-10 h-10 bg-[#8B5CF6]/8 rounded-lg flex items-center justify-center">
+            <Package size={18} className="text-[#8B5CF6]" />
+          </div>
+          <span className="text-xs font-medium text-[#1A1A2E]">Inventory</span>
         </button>
         <button
           onClick={() => setShowCalculator(true)}
