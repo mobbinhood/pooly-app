@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, ArrowRight } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, ArrowRight, Waves, Thermometer, Shield } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
 
 async function getSupabase() {
@@ -51,7 +51,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
 
   if (!customer) notFound();
 
-  const [{ data: serviceLogs }, { data: routeStops }, { data: invoices }, { data: workOrders }] = await Promise.all([
+  const [{ data: serviceLogs }, { data: routeStops }, { data: invoices }, { data: workOrders }, { data: pools }] = await Promise.all([
     supabase
       .from('service_logs')
       .select('id, service_date, chlorine_level, ph_level, alkalinity, cya, calcium, salt_level, water_temp, chemicals_added, equipment_status, notes, time_on_site_minutes, technician_id, users:technician_id(name)')
@@ -75,6 +75,10 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
       .in('status', ['open', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(5),
+    supabase
+      .from('pools')
+      .select('id, type, size_gallons, surface_type, has_pump, has_filter, filter_type, has_heater, heater_type, has_cleaner, cleaner_type, has_salt_system, salt_system_model, equipment_notes')
+      .eq('customer_id', id),
   ]);
 
   const frequencyLabel: Record<string, string> = {
@@ -185,6 +189,97 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
               </div>
             )}
           </div>
+
+          {/* Water Quality Summary */}
+          {serviceLogs && serviceLogs.length > 0 && (() => {
+            const latest = serviceLogs[0];
+            const readings = [
+              { label: 'pH', value: latest.ph_level, ideal: '7.2–7.6', unit: '', ok: latest.ph_level != null && latest.ph_level >= 7.2 && latest.ph_level <= 7.6 },
+              { label: 'Chlorine', value: latest.chlorine_level, ideal: '1–3 ppm', unit: ' ppm', ok: latest.chlorine_level != null && latest.chlorine_level >= 1 && latest.chlorine_level <= 3 },
+              { label: 'Alkalinity', value: latest.alkalinity, ideal: '80–120', unit: ' ppm', ok: latest.alkalinity != null && latest.alkalinity >= 80 && latest.alkalinity <= 120 },
+              { label: 'CYA', value: latest.cya, ideal: '30–50', unit: ' ppm', ok: latest.cya != null && latest.cya >= 30 && latest.cya <= 50 },
+            ].filter(r => r.value != null);
+            const allGood = readings.every(r => r.ok);
+
+            return (
+              <section>
+                <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
+                  <Droplets size={16} className="text-[#0066FF]" />
+                  Water Quality
+                  <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full ${allGood ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                    {allGood ? 'All Good' : 'Needs Attention'}
+                  </span>
+                </h3>
+                <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-[#F1F5F9]">
+                    {readings.map((r) => (
+                      <div key={r.label} className="p-3 text-center">
+                        <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">{r.label}</p>
+                        <p className={`text-lg font-bold mt-0.5 ${r.ok ? 'text-[#1A1A2E]' : 'text-amber-600'}`}>
+                          {r.value}{r.unit}
+                        </p>
+                        <p className="text-[10px] text-[#94A3B8] mt-0.5">Ideal: {r.ideal}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {latest.water_temp != null && (
+                    <div className="border-t border-[#F1F5F9] px-4 py-2.5 flex items-center gap-2">
+                      <Thermometer size={13} className="text-[#64748B]" />
+                      <span className="text-xs text-[#64748B]">Water Temperature: <span className="font-medium text-[#1A1A2E]">{latest.water_temp}°F</span></span>
+                      <span className="ml-auto text-[10px] text-[#94A3B8]">as of {formatDate(latest.service_date)}</span>
+                    </div>
+                  )}
+                </div>
+              </section>
+            );
+          })()}
+
+          {/* Pool Details */}
+          {pools && pools.length > 0 && (
+            <section>
+              <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
+                <Waves size={16} className="text-[#0066FF]" />
+                Pool Details
+              </h3>
+              <div className="space-y-2">
+                {pools.map((pool) => {
+                  const equipment = [
+                    pool.has_pump && 'Pump',
+                    pool.has_filter && `Filter${pool.filter_type ? ` (${pool.filter_type})` : ''}`,
+                    pool.has_heater && `Heater${pool.heater_type ? ` (${pool.heater_type})` : ''}`,
+                    pool.has_cleaner && `Cleaner${pool.cleaner_type ? ` (${pool.cleaner_type})` : ''}`,
+                    pool.has_salt_system && `Salt System${pool.salt_system_model ? ` (${pool.salt_system_model})` : ''}`,
+                  ].filter(Boolean);
+
+                  return (
+                    <div key={pool.id} className="bg-white rounded-xl border border-[#E2E8F0] px-4 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-[#1A1A2E] capitalize">{pool.type} Pool</p>
+                        {pool.size_gallons && (
+                          <span className="text-xs text-[#64748B]">{pool.size_gallons.toLocaleString()} gal</span>
+                        )}
+                      </div>
+                      {pool.surface_type && (
+                        <p className="text-xs text-[#64748B] mb-1.5">Surface: {pool.surface_type}</p>
+                      )}
+                      {equipment.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {equipment.map((eq) => (
+                            <span key={eq as string} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 border border-slate-200">
+                              {eq}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {pool.equipment_notes && (
+                        <p className="text-xs text-[#94A3B8] mt-2">{pool.equipment_notes}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Upcoming Services */}
           <section>
@@ -460,6 +555,24 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             )}
           </section>
         </main>
+
+        {/* Service Status Banner */}
+        <div className="px-4 pb-2">
+          <div className="bg-white rounded-xl border border-[#E2E8F0] px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[#10B981]/8 rounded-lg flex items-center justify-center shrink-0">
+                <Shield size={18} className="text-[#10B981]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1A1A2E]">Your pool is being taken care of</p>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  {serviceLogs?.length ?? 0} service visits recorded
+                  {lastServiceDate && <> &middot; Last visit {formatDate(lastServiceDate)}</>}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <footer className="px-4 py-6 text-center">
           <p className="text-xs text-[#94A3B8]">Powered by Pooly</p>

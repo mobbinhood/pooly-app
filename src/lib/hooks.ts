@@ -142,12 +142,12 @@ export function useRoutes(orgId?: string) {
       if (!orgId) return [];
       const { data, error } = await supabase
         .from('routes')
-        .select('*, route_stops(*, customers(name, address)), users:technician_id(name)')
+        .select('*, route_stops(*, customers(name, address, latitude, longitude)), users:technician_id(name)')
         .eq('organization_id', orgId)
         .order('day_of_week');
       if (error) throw error;
       return data as (Route & {
-        route_stops: (RouteStop & { customers: Pick<Customer, 'name' | 'address'> })[];
+        route_stops: (RouteStop & { customers: Pick<Customer, 'name' | 'address'> & { latitude?: number | null; longitude?: number | null } })[];
         users: Pick<User, 'name'> | null;
       })[];
     },

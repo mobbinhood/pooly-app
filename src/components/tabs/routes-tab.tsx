@@ -12,12 +12,32 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route } from 'lucide-react';
+import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3959;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function calcRouteDistance(stops: { customers: { latitude?: number | null; longitude?: number | null } }[]): number | null {
+  const coords = stops
+    .filter(s => s.customers?.latitude && s.customers?.longitude)
+    .map(s => ({ lat: s.customers.latitude!, lng: s.customers.longitude! }));
+  if (coords.length < 2) return null;
+  let dist = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    dist += haversine(coords[i].lat, coords[i].lng, coords[i + 1].lat, coords[i + 1].lng);
+  }
+  return Math.round(dist * 10) / 10;
+}
 
 export function RoutesTab({ orgId }: { orgId: string }) {
   const { data: routes, isLoading } = useRoutes(orgId);
@@ -120,6 +140,8 @@ export function RoutesTab({ orgId }: { orgId: string }) {
             const isExpanded = expandedRoute === route.id;
             const stops = [...(route.route_stops ?? [])].sort((a, b) => a.stop_order - b.stop_order);
             const totalTime = stops.reduce((sum, s) => sum + s.estimated_duration_minutes, 0);
+            const routeDist = calcRouteDistance(stops);
+            const ungeocodedCount = stops.filter(s => !s.customers?.latitude || !s.customers?.longitude).length;
 
             return (
               <motion.div
@@ -139,6 +161,7 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                     <p className="text-xs text-[#64748B]">
                       {stops.length} stops
                       {totalTime > 0 && <> · <Clock size={10} className="inline" /> ~{Math.round(totalTime / 60)}h {totalTime % 60}m</>}
+                      {routeDist != null && <> · <Route size={10} className="inline" /> {routeDist} mi</>}
                       {route.users?.name && <> · {route.users.name}</>}
                     </p>
                   </div>
@@ -163,6 +186,14 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                       className="overflow-hidden"
                     >
                       <div className="border-t border-[#F1F5F9] px-4 py-3">
+                        {ungeocodedCount > 0 && (
+                          <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+                            <p className="text-xs text-amber-700">
+                              {ungeocodedCount} stop{ungeocodedCount !== 1 ? 's' : ''} missing coordinates — optimization may be limited
+                            </p>
+                          </div>
+                        )}
                         {stops.length === 0 ? (
                           <p className="text-sm text-[#94A3B8] text-center py-4">No stops assigned</p>
                         ) : (
