@@ -87,13 +87,13 @@ export default function AppPage() {
     { id: 'home' as Tab, icon: Home, label: 'Home' },
     { id: 'customers' as Tab, icon: Users, label: 'Customers' },
     { id: 'routes' as Tab, icon: MapPin, label: 'Routes' },
-    { id: 'calendar' as Tab, icon: CalendarDays, label: 'Calendar' },
+    { id: 'invoices' as Tab, icon: FileText, label: 'Invoices' },
   ];
 
   const moreMenuTabs = [
-    { id: 'invoices' as Tab, icon: FileText, label: 'Invoices' },
-    { id: 'work-orders' as Tab, icon: Wrench, label: 'Work Orders' },
-    { id: 'inventory' as Tab, icon: Package, label: 'Inventory' },
+    { id: 'work-orders' as Tab, icon: Wrench, label: 'Work Orders', featured: true },
+    { id: 'inventory' as Tab, icon: Package, label: 'Inventory', featured: true },
+    { id: 'calendar' as Tab, icon: CalendarDays, label: 'Calendar' },
     { id: 'broadcast' as Tab, icon: Send, label: 'Broadcast' },
     { id: 'reports' as Tab, icon: FileDown, label: 'Reports' },
     { id: 'discounts' as Tab, icon: Tag, label: 'Discounts' },
@@ -179,7 +179,26 @@ export default function AppPage() {
                   <X size={16} className="text-[#94A3B8]" />
                 </button>
               </div>
-              {moreMenuTabs.map((tab) => {
+              {/* Featured items as grid */}
+              <div className="grid grid-cols-2 gap-2 p-3 border-b border-[#E2E8F0]">
+                {moreMenuTabs.filter(t => t.featured).map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => { setActiveTab(tab.id); setShowMore(false); }}
+                      className={`flex flex-col items-center gap-1.5 py-3 rounded-lg transition ${isActive ? 'bg-[#0066FF]/5' : 'hover:bg-[#F8FAFC]'}`}
+                    >
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isActive ? 'bg-[#0066FF]/10' : 'bg-[#F1F5F9]'}`}>
+                        <tab.icon size={18} className={isActive ? 'text-[#0066FF]' : 'text-[#64748B]'} />
+                      </div>
+                      <span className={`text-xs font-medium ${isActive ? 'text-[#0066FF]' : 'text-[#1A1A2E]'}`}>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Other menu items */}
+              {moreMenuTabs.filter(t => !t.featured).map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (
                   <button

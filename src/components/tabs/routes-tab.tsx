@@ -45,7 +45,10 @@ export function RoutesTab({ orgId }: { orgId: string }) {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(data.message || 'Route optimized');
+        const msg = data.saved_miles > 0
+          ? `Optimized — saved ${data.saved_miles} mi (${data.total_miles} mi total)`
+          : data.message || 'Route optimized';
+        toast.success(msg);
         window.location.reload();
       } else {
         toast.error(data.error || 'Failed to optimize');

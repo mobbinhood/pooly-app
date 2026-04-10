@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, ArrowRight } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
 
 async function getSupabase() {
@@ -74,6 +74,29 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
     weekly: 'Weekly', biweekly: 'Every 2 Weeks', monthly: 'Monthly', on_call: 'On Call',
   };
 
+  // Calculate next service date from route schedule
+  const nextServiceDate = (() => {
+    if (!routeStops?.length) return null;
+    const today = new Date();
+    const todayDay = today.getDay();
+    for (const stop of routeStops) {
+      const route = stop.routes as unknown as { name: string; day_of_week: number; users: { name: string } | null } | null;
+      if (!route) continue;
+      let daysUntil = route.day_of_week - todayDay;
+      if (daysUntil <= 0) daysUntil += 7;
+      const nextDate = new Date(today);
+      nextDate.setDate(today.getDate() + daysUntil);
+      return nextDate;
+    }
+    return null;
+  })();
+
+  // Account standing
+  const outstandingCents = invoices?.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.total_cents, 0) ?? 0;
+  const overdueCents = invoices?.filter(i => i.status === 'overdue').reduce((s, i) => s + i.total_cents, 0) ?? 0;
+  const paidCents = invoices?.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_cents, 0) ?? 0;
+  const lastServiceDate = serviceLogs?.[0]?.service_date;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <div className="max-w-2xl mx-auto">
@@ -100,6 +123,62 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
         </header>
 
         <main className="px-4 py-5 space-y-5">
+          {/* Account Summary Card */}
+          <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+            <div className="grid grid-cols-2 divide-x divide-[#E2E8F0]">
+              {/* Next Service */}
+              <div className="p-4 text-center">
+                <div className="w-8 h-8 mx-auto mb-2 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+                  <Calendar size={14} className="text-[#0066FF]" />
+                </div>
+                <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Next Service</p>
+                <p className="text-sm font-semibold text-[#1A1A2E] mt-0.5">
+                  {nextServiceDate
+                    ? nextServiceDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                    : 'Not scheduled'}
+                </p>
+              </div>
+              {/* Last Service */}
+              <div className="p-4 text-center">
+                <div className="w-8 h-8 mx-auto mb-2 bg-[#10B981]/8 rounded-lg flex items-center justify-center">
+                  <CheckCircle2 size={14} className="text-[#10B981]" />
+                </div>
+                <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Last Service</p>
+                <p className="text-sm font-semibold text-[#1A1A2E] mt-0.5">
+                  {lastServiceDate ? formatDate(lastServiceDate) : 'None yet'}
+                </p>
+              </div>
+            </div>
+            {/* Account Standing */}
+            {(outstandingCents > 0 || paidCents > 0) && (
+              <div className={`px-4 py-3 border-t ${overdueCents > 0 ? 'bg-red-50' : outstandingCents > 0 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {overdueCents > 0 ? (
+                      <AlertCircle size={14} className="text-red-500" />
+                    ) : outstandingCents > 0 ? (
+                      <DollarSign size={14} className="text-amber-600" />
+                    ) : (
+                      <CheckCircle2 size={14} className="text-emerald-600" />
+                    )}
+                    <span className={`text-xs font-medium ${overdueCents > 0 ? 'text-red-700' : outstandingCents > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {overdueCents > 0
+                        ? `$${(overdueCents / 100).toFixed(2)} overdue`
+                        : outstandingCents > 0
+                          ? `$${(outstandingCents / 100).toFixed(2)} balance due`
+                          : 'Account current'}
+                    </span>
+                  </div>
+                  {outstandingCents > 0 && (
+                    <span className="text-[10px] font-medium text-[#64748B]">
+                      Total due: ${(outstandingCents / 100).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Upcoming Services */}
           <section>
             <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
@@ -148,17 +227,23 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             ) : (
               <>
                 {/* Billing Summary */}
-                <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-3 gap-2 mb-3">
                   <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 text-center">
                     <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Outstanding</p>
                     <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">
-                      ${(invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.total_cents, 0) / 100).toFixed(2)}
+                      ${(outstandingCents / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className={`rounded-xl border p-3 text-center ${overdueCents > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-[#E2E8F0]'}`}>
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Overdue</p>
+                    <p className={`text-lg font-bold mt-0.5 ${overdueCents > 0 ? 'text-red-500' : 'text-[#1A1A2E]'}`}>
+                      ${(overdueCents / 100).toFixed(2)}
                     </p>
                   </div>
                   <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 text-center">
                     <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Paid</p>
                     <p className="text-lg font-bold text-[#10B981] mt-0.5">
-                      ${(invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_cents, 0) / 100).toFixed(2)}
+                      ${(paidCents / 100).toFixed(2)}
                     </p>
                   </div>
                 </div>
