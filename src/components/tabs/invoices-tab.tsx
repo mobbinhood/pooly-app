@@ -73,11 +73,37 @@ export function InvoicesTab({ orgId }: { orgId: string }) {
     statusFilter === 'all' || inv.status === statusFilter
   ) ?? [];
 
+  const now = new Date();
   const stats = {
     total: invoices?.length ?? 0,
     unpaid: invoices?.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.total_cents, 0) ?? 0,
     paid: invoices?.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_cents, 0) ?? 0,
     overdue: invoices?.filter(i => i.status === 'overdue').length ?? 0,
+    draft: invoices?.filter(i => i.status === 'draft').length ?? 0,
+  };
+
+  // Aging breakdown for outstanding invoices
+  const outstanding = invoices?.filter(i => i.status === 'sent' || i.status === 'overdue') ?? [];
+  const aging = {
+    current: outstanding.filter(i => {
+      const due = new Date(i.due_date + 'T00:00:00');
+      return due >= now;
+    }).reduce((s, i) => s + i.total_cents, 0),
+    over30: outstanding.filter(i => {
+      const due = new Date(i.due_date + 'T00:00:00');
+      const days = Math.floor((now.getTime() - due.getTime()) / 86400000);
+      return days >= 1 && days < 31;
+    }).reduce((s, i) => s + i.total_cents, 0),
+    over60: outstanding.filter(i => {
+      const due = new Date(i.due_date + 'T00:00:00');
+      const days = Math.floor((now.getTime() - due.getTime()) / 86400000);
+      return days >= 31 && days < 61;
+    }).reduce((s, i) => s + i.total_cents, 0),
+    over90: outstanding.filter(i => {
+      const due = new Date(i.due_date + 'T00:00:00');
+      const days = Math.floor((now.getTime() - due.getTime()) / 86400000);
+      return days >= 61;
+    }).reduce((s, i) => s + i.total_cents, 0),
   };
 
   if (isLoading) return <ListSkeleton rows={4} />;
@@ -134,6 +160,43 @@ export function InvoicesTab({ orgId }: { orgId: string }) {
           <p className="text-lg font-bold text-[#EF4444] mt-0.5">{stats.overdue}</p>
         </div>
       </div>
+
+      {/* Aging Breakdown */}
+      {(aging.over30 > 0 || aging.over60 > 0 || aging.over90 > 0) && (
+        <div className="bg-white rounded-xl border border-[#E2E8F0] p-4">
+          <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider mb-2">Aging Breakdown</p>
+          <div className="space-y-2">
+            {aging.current > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[#64748B]">Current</span>
+                <span className="text-xs font-semibold text-[#1A1A2E]">{formatCents(aging.current)}</span>
+              </div>
+            )}
+            {aging.over30 > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[#F59E0B]">1-30 days past due</span>
+                <span className="text-xs font-semibold text-[#F59E0B]">{formatCents(aging.over30)}</span>
+              </div>
+            )}
+            {aging.over60 > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[#EF4444]">31-60 days past due</span>
+                <span className="text-xs font-semibold text-[#EF4444]">{formatCents(aging.over60)}</span>
+              </div>
+            )}
+            {aging.over90 > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[#EF4444] font-semibold">60+ days past due</span>
+                <span className="text-xs font-bold text-[#EF4444]">{formatCents(aging.over90)}</span>
+              </div>
+            )}
+            <div className="border-t border-[#F1F5F9] pt-2 flex items-center justify-between">
+              <span className="text-xs font-medium text-[#1A1A2E]">Total Outstanding</span>
+              <span className="text-sm font-bold text-[#1A1A2E]">{formatCents(stats.unpaid)}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex gap-2 overflow-x-auto pb-1">

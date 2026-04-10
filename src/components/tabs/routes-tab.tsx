@@ -146,6 +146,65 @@ export function RoutesTab({ orgId }: { orgId: string }) {
         </button>
       </div>
 
+      {/* Route Summary */}
+      {routes && routes.length > 0 && (() => {
+        const totalStops = routes.reduce((sum, r) => sum + (r.route_stops?.length ?? 0), 0);
+        const totalMiles = routes.reduce((sum, r) => {
+          const dist = calcRouteDistance([...(r.route_stops ?? [])].sort((a, b) => a.stop_order - b.stop_order));
+          return sum + (dist ?? 0);
+        }, 0);
+        const totalServiceMinutes = routes.reduce((sum, r) =>
+          sum + (r.route_stops ?? []).reduce((s, stop) => s + stop.estimated_duration_minutes, 0), 0);
+        const ungeocodedTotal = routes.reduce((sum, r) =>
+          sum + (r.route_stops ?? []).filter(s => !s.customers?.latitude || !s.customers?.longitude).length, 0);
+        return (
+          <div className="space-y-3">
+            <div className="grid grid-cols-4 gap-2">
+              <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
+                <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Routes</p>
+                <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">{routes.length}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
+                <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Stops</p>
+                <p className="text-lg font-bold text-[#0066FF] mt-0.5">{totalStops}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
+                <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Miles</p>
+                <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">{Math.round(totalMiles * 10) / 10}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
+                <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Svc Time</p>
+                <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">{Math.round(totalServiceMinutes / 60)}h</p>
+              </div>
+            </div>
+            {ungeocodedTotal > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+                <p className="text-xs text-amber-700">
+                  {ungeocodedTotal} stop{ungeocodedTotal !== 1 ? 's' : ''} across routes missing coordinates — run optimize to auto-geocode
+                </p>
+              </div>
+            )}
+            {routes.length >= 2 && totalStops >= 4 && (
+              <button
+                onClick={async () => {
+                  for (const route of routes) {
+                    if ((route.route_stops?.length ?? 0) >= 2) {
+                      await handleOptimizeRoute(route.id);
+                    }
+                  }
+                }}
+                disabled={!!optimizing}
+                className="w-full py-2.5 bg-[#10B981] text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {optimizing ? <Loader2 size={14} className="animate-spin" /> : <Route size={14} />}
+                Optimize All Routes
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {!routes?.length ? (
         <EmptyState
           icon={MapPin}

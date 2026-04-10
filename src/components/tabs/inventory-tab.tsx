@@ -66,6 +66,28 @@ export function InventoryTab({ orgId }: { orgId: string }) {
         </button>
       </div>
 
+      {/* Summary Stats */}
+      {(inventory?.length ?? 0) > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-xl p-3 border border-[#E2E8F0]">
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Total Items</p>
+            <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">{inventory?.length ?? 0}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 border border-[#E2E8F0]">
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Low Stock</p>
+            <p className={`text-lg font-bold mt-0.5 ${lowStockItems.length > 0 ? 'text-[#F59E0B]' : 'text-[#10B981]'}`}>
+              {lowStockItems.length}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-3 border border-[#E2E8F0]">
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">In Stock</p>
+            <p className="text-lg font-bold text-[#10B981] mt-0.5">
+              {(inventory?.length ?? 0) - lowStockItems.length}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Low Stock Alert */}
       {lowStockItems.length > 0 && (
         <motion.div
@@ -117,6 +139,9 @@ export function InventoryTab({ orgId }: { orgId: string }) {
                         {item.quantity_on_hand}
                       </span> {item.unit}
                       {item.reorder_threshold ? ` · Reorder at ${item.reorder_threshold}` : ''}
+                      {item.last_restocked_at && (
+                        <> · Restocked {new Date(item.last_restocked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">

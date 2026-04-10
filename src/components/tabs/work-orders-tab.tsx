@@ -60,6 +60,36 @@ export function WorkOrdersTab({ orgId }: { orgId: string }) {
         </button>
       </div>
 
+      {/* Summary Stats */}
+      {(workOrders?.length ?? 0) > 0 && (
+        <div className="grid grid-cols-4 gap-2">
+          <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Open</p>
+            <p className="text-lg font-bold text-[#0066FF] mt-0.5">
+              {workOrders?.filter(wo => wo.status === 'open').length ?? 0}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">In Progress</p>
+            <p className="text-lg font-bold text-[#F59E0B] mt-0.5">
+              {workOrders?.filter(wo => wo.status === 'in_progress').length ?? 0}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Done</p>
+            <p className="text-lg font-bold text-[#10B981] mt-0.5">
+              {workOrders?.filter(wo => wo.status === 'completed').length ?? 0}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Urgent</p>
+            <p className={`text-lg font-bold mt-0.5 ${(workOrders?.filter(wo => wo.priority === 'urgent' && wo.status !== 'completed' && wo.status !== 'cancelled').length ?? 0) > 0 ? 'text-[#EF4444]' : 'text-[#94A3B8]'}`}>
+              {workOrders?.filter(wo => wo.priority === 'urgent' && wo.status !== 'completed' && wo.status !== 'cancelled').length ?? 0}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Status Filter */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {['all', 'open', 'in_progress', 'completed', 'cancelled'].map(status => (

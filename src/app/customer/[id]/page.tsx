@@ -31,6 +31,9 @@ import {
   Repeat,
   DollarSign,
   CalendarClock,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -83,6 +86,44 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const paidCents = (invoices ?? [])
     .filter(inv => inv.status === 'paid')
     .reduce((sum, inv) => sum + inv.total_cents, 0);
+
+  // Next scheduled service day
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const nextServiceDay = customerRoutes.length > 0
+    ? DAY_NAMES[customerRoutes[0].day_of_week]
+    : null;
+
+  // Water quality trends (compare last 2 logs)
+  const recentLogs = serviceLogs?.slice(0, 5) ?? [];
+  const trends = (() => {
+    if (recentLogs.length < 2) return null;
+    const latest = recentLogs[0];
+    const prev = recentLogs[1];
+    const trendFor = (a: number | null, b: number | null) => {
+      if (a == null || b == null) return null;
+      const diff = a - b;
+      if (Math.abs(diff) < 0.1) return 'stable' as const;
+      return diff > 0 ? 'up' as const : 'down' as const;
+    };
+    return {
+      ph: trendFor(latest.ph_level, prev.ph_level),
+      chlorine: trendFor(latest.chlorine_level, prev.chlorine_level),
+      alkalinity: trendFor(latest.alkalinity, prev.alkalinity),
+    };
+  })();
+
+  // Invoice aging for this customer
+  const customerInvoiceAging = (() => {
+    const now = new Date();
+    const unpaid = (invoices ?? []).filter(i => i.status === 'sent' || i.status === 'overdue');
+    const overdue = unpaid.filter(i => new Date(i.due_date + 'T00:00:00') < now);
+    return {
+      unpaidCount: unpaid.length,
+      unpaidCents: unpaid.reduce((s, i) => s + i.total_cents, 0),
+      overdueCount: overdue.length,
+      overdueCents: overdue.reduce((s, i) => s + i.total_cents, 0),
+    };
+  })();
 
   const pools = (customer as { pools?: Pool[] } | undefined)?.pools ?? [];
   const logs = serviceLogs?.slice(0, 10) ?? [];
@@ -206,6 +247,69 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                 <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Last Service</p>
                 <p className="text-sm font-bold text-[#1A1A2E]">
                   {lastServiceDate ? format(new Date(lastServiceDate), 'MMM d') : '—'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Next Service & Water Quality Trends */}
+          {(nextServiceDay || trends) && (
+            <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+              {nextServiceDay && (
+                <div className="px-4 py-3 border-b border-[#F1F5F9] flex items-center gap-3">
+                  <div className="w-8 h-8 bg-[#0066FF]/8 rounded-lg flex items-center justify-center shrink-0">
+                    <CalendarClock size={14} className="text-[#0066FF]" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Next Scheduled Service</p>
+                    <p className="text-sm font-semibold text-[#1A1A2E]">{nextServiceDay}s</p>
+                  </div>
+                </div>
+              )}
+              {trends && (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] text-[#94A3B8] font-medium uppercase mb-2">Water Quality Trends</p>
+                  <div className="flex gap-3">
+                    {trends.ph && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F8FAFC] rounded-lg">
+                        <span className="text-xs text-[#64748B]">pH</span>
+                        {trends.ph === 'up' && <TrendingUp size={12} className="text-[#F59E0B]" />}
+                        {trends.ph === 'down' && <TrendingDown size={12} className="text-[#0066FF]" />}
+                        {trends.ph === 'stable' && <Minus size={12} className="text-[#10B981]" />}
+                      </div>
+                    )}
+                    {trends.chlorine && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F8FAFC] rounded-lg">
+                        <span className="text-xs text-[#64748B]">Cl</span>
+                        {trends.chlorine === 'up' && <TrendingUp size={12} className="text-[#10B981]" />}
+                        {trends.chlorine === 'down' && <TrendingDown size={12} className="text-[#F59E0B]" />}
+                        {trends.chlorine === 'stable' && <Minus size={12} className="text-[#10B981]" />}
+                      </div>
+                    )}
+                    {trends.alkalinity && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F8FAFC] rounded-lg">
+                        <span className="text-xs text-[#64748B]">Alk</span>
+                        {trends.alkalinity === 'up' && <TrendingUp size={12} className="text-[#F59E0B]" />}
+                        {trends.alkalinity === 'down' && <TrendingDown size={12} className="text-[#0066FF]" />}
+                        {trends.alkalinity === 'stable' && <Minus size={12} className="text-[#10B981]" />}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Invoice Aging Alert */}
+          {customerInvoiceAging.overdueCount > 0 && (
+            <div className="bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-xl px-4 py-3 flex items-center gap-3">
+              <AlertCircle size={16} className="text-[#EF4444] shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-[#EF4444]">
+                  {customerInvoiceAging.overdueCount} overdue invoice{customerInvoiceAging.overdueCount > 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-[#EF4444]/70">
+                  ${(customerInvoiceAging.overdueCents / 100).toFixed(2)} past due
                 </p>
               </div>
             </div>
@@ -633,35 +737,55 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             )}
           </section>
 
-          {/* Recent Invoices */}
-          {invoices && invoices.length > 0 && (
-            <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#F1F5F9]">
-                <h2 className="text-sm font-semibold text-[#1A1A2E]">
-                  Recent Invoices <span className="text-[#94A3B8] font-normal">({invoices.length})</span>
-                </h2>
-              </div>
+          {/* Invoices */}
+          <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#F1F5F9] flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#1A1A2E]">
+                Invoices {invoices && invoices.length > 0 && <span className="text-[#94A3B8] font-normal">({invoices.length})</span>}
+              </h2>
+              {customerInvoiceAging.unpaidCount > 0 && (
+                <span className="text-xs font-medium text-[#F59E0B]">
+                  ${(customerInvoiceAging.unpaidCents / 100).toFixed(2)} unpaid
+                </span>
+              )}
+            </div>
+            {invoices && invoices.length > 0 ? (
               <div className="divide-y divide-[#F1F5F9]">
-                {invoices.slice(0, 5).map((inv) => (
-                  <div key={inv.id} className="px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-[#1A1A2E]">{inv.invoice_number}</p>
-                      <p className="text-xs text-[#94A3B8]">{format(new Date(inv.issued_date), 'MMM d, yyyy')}</p>
+                {invoices.map((inv) => {
+                  const isOverdue = inv.status === 'sent' && new Date(inv.due_date + 'T00:00:00') < new Date();
+                  const displayStatus = isOverdue ? 'overdue' : inv.status;
+                  return (
+                    <div key={inv.id} className="px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-[#1A1A2E]">{inv.invoice_number}</p>
+                        <p className="text-xs text-[#94A3B8]">
+                          {format(new Date(inv.issued_date), 'MMM d, yyyy')}
+                          {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                            <> · Due {format(new Date(inv.due_date), 'MMM d')}</>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-[#1A1A2E]">${(inv.total_cents / 100).toFixed(2)}</p>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          displayStatus === 'paid' ? 'bg-[#10B981]/10 text-[#10B981]' :
+                          displayStatus === 'overdue' ? 'bg-[#EF4444]/10 text-[#EF4444]' :
+                          displayStatus === 'sent' ? 'bg-[#0066FF]/10 text-[#0066FF]' :
+                          displayStatus === 'cancelled' ? 'bg-[#94A3B8]/10 text-[#94A3B8]' :
+                          'bg-[#F1F5F9] text-[#64748B]'
+                        }`}>{displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-[#1A1A2E]">${(inv.total_cents / 100).toFixed(2)}</p>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                        inv.status === 'paid' ? 'bg-[#10B981]/10 text-[#10B981]' :
-                        inv.status === 'overdue' ? 'bg-[#EF4444]/10 text-[#EF4444]' :
-                        inv.status === 'sent' ? 'bg-[#0066FF]/10 text-[#0066FF]' :
-                        'bg-[#F1F5F9] text-[#64748B]'
-                      }`}>{inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </section>
-          )}
+            ) : (
+              <div className="p-8 text-center">
+                <Receipt className="w-8 h-8 text-[#CBD5E1] mx-auto mb-2" />
+                <p className="text-sm text-[#64748B]">No invoices yet</p>
+              </div>
+            )}
+          </section>
         </main>
       </div>
     </div>
