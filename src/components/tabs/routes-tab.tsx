@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRoutes, useCreateRoute, useDeleteRoute, useUpdateStopOrder, useRemoveRouteStop, useAddRouteStop, useCustomers, useTechnicians } from '@/lib/hooks';
+import { useRoutes, useCreateRoute, useDeleteRoute, useUpdateStopOrder, useRemoveRouteStop, useAddRouteStop, useCustomers, useTechnicians, useCompletedStops, useToggleStopComplete } from '@/lib/hooks';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { routeSchema, type RouteInput } from '@/lib/validations';
@@ -12,7 +12,7 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car, Gauge, BarChart3, Fuel, Leaf } from 'lucide-react';
+import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car, Gauge, BarChart3, Fuel, Leaf, CheckCircle2, Circle, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -126,6 +126,8 @@ export function RoutesTab({ orgId }: { orgId: string }) {
   const addStop = useAddRouteStop();
   const { data: customers } = useCustomers(orgId);
   const { data: technicians } = useTechnicians(orgId);
+  const { data: completedStops } = useCompletedStops();
+  const toggleComplete = useToggleStopComplete();
 
   const [showForm, setShowForm] = useState(false);
   const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
@@ -227,6 +229,41 @@ export function RoutesTab({ orgId }: { orgId: string }) {
       </div>
 
       {/* Route Summary */}
+      {/* Today's Progress */}
+      {routes && routes.length > 0 && (() => {
+        const today = new Date().getDay();
+        const todayRoutes = routes.filter(r => r.day_of_week === today);
+        if (todayRoutes.length === 0) return null;
+        const todayStops = todayRoutes.flatMap(r => r.route_stops ?? []);
+        const doneCount = todayStops.filter(s => completedStops?.[s.id]).length;
+        const totalToday = todayStops.length;
+        const pct = totalToday > 0 ? Math.round((doneCount / totalToday) * 100) : 0;
+        if (totalToday === 0) return null;
+        return (
+          <div className="bg-white rounded-xl border border-[#E2E8F0] p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={14} className="text-[#0066FF]" />
+                <h3 className="text-sm font-semibold text-[#1A1A2E]">Today&apos;s Progress</h3>
+              </div>
+              <span className={`text-sm font-bold ${pct === 100 ? 'text-[#10B981]' : 'text-[#0066FF]'}`}>
+                {doneCount}/{totalToday}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-[#F1F5F9] rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${pct === 100 ? 'bg-[#10B981]' : 'bg-[#0066FF]'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5">
+              <span className="text-[10px] text-[#94A3B8]">{todayRoutes.length} route{todayRoutes.length !== 1 ? 's' : ''} today</span>
+              <span className="text-[10px] text-[#94A3B8]">{pct}% complete</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {routes && routes.length > 0 && (() => {
         const totalStops = routes.reduce((sum, r) => sum + (r.route_stops?.length ?? 0), 0);
         const totalMiles = routes.reduce((sum, r) => {
@@ -448,7 +485,36 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                       {route.users?.name && <> · {route.users.name}</>}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const nextDay = (route.day_of_week + 1) % 7;
+                        try {
+                          const newRoute = await createRoute.mutateAsync({
+                            organization_id: orgId,
+                            name: `${route.name} (copy)`,
+                            day_of_week: nextDay,
+                            technician_id: (route as unknown as { technician_id: string | null }).technician_id || undefined,
+                          });
+                          if (newRoute && stops.length > 0) {
+                            for (let idx = 0; idx < stops.length; idx++) {
+                              await addStop.mutateAsync({
+                                route_id: (newRoute as { id: string }).id,
+                                customer_id: (stops[idx] as unknown as { customer_id: string }).customer_id,
+                                stop_order: idx,
+                                estimated_duration_minutes: stops[idx].estimated_duration_minutes,
+                              });
+                            }
+                          }
+                          toast.success('Route duplicated');
+                        } catch { toast.error('Failed to duplicate'); }
+                      }}
+                      className="p-1.5 hover:bg-[#0066FF]/5 rounded-lg text-[#94A3B8] hover:text-[#0066FF] transition"
+                      title="Duplicate route"
+                    >
+                      <Copy size={14} />
+                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteTarget(route.id); }}
                       className="p-1.5 hover:bg-[#EF4444]/5 rounded-lg text-[#94A3B8] hover:text-[#EF4444] transition"
@@ -560,7 +626,14 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                                   }
                                   return (
                                     <div key={stop.id}>
-                                      <SortableStop stop={stop} index={idx} onRemove={() => removeStop.mutate(stop.id)} />
+                                      <SortableStop
+                                        stop={stop}
+                                        index={idx}
+                                        onRemove={() => removeStop.mutate(stop.id)}
+                                        isCompleted={!!completedStops?.[stop.id]}
+                                        onToggleComplete={() => toggleComplete.mutate({ stopId: stop.id, completed: !completedStops?.[stop.id] })}
+                                        isToday={route.day_of_week === new Date().getDay()}
+                                      />
                                       {legDist != null && (
                                         <div className="flex items-center gap-2 pl-10 py-0.5">
                                           <div className="w-px h-3 bg-[#E2E8F0]" />
@@ -636,16 +709,48 @@ export function RoutesTab({ orgId }: { orgId: string }) {
 
       <Modal open={!!addStopRoute} onClose={() => setAddStopRoute(null)} title="Add Customer to Route" size="sm">
         <div className="space-y-4">
-          <select
-            value={selectedCustomer}
-            onChange={(e) => setSelectedCustomer(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Select customer...</option>
-            {customers?.map(c => (
-              <option key={c.id} value={c.id}>{c.name} - {c.address}</option>
-            ))}
-          </select>
+          {(() => {
+            const currentRoute = routes?.find(r => r.id === addStopRoute);
+            const existingIds = new Set(currentRoute?.route_stops?.map(s => (s as unknown as { customer_id: string }).customer_id) ?? []);
+            const routeCenter = (() => {
+              const coords = (currentRoute?.route_stops ?? [])
+                .filter(s => s.customers?.latitude && s.customers?.longitude)
+                .map(s => ({ lat: s.customers.latitude!, lng: s.customers.longitude! }));
+              if (coords.length === 0) return null;
+              return {
+                lat: coords.reduce((s, c) => s + c.lat, 0) / coords.length,
+                lng: coords.reduce((s, c) => s + c.lng, 0) / coords.length,
+              };
+            })();
+            const available = customers
+              ?.filter(c => !existingIds.has(c.id))
+              .map(c => {
+                const dist = routeCenter && c.latitude && c.longitude
+                  ? haversine(routeCenter.lat, routeCenter.lng, c.latitude, c.longitude)
+                  : null;
+                return { ...c, dist };
+              })
+              .sort((a, b) => {
+                if (a.dist != null && b.dist != null) return a.dist - b.dist;
+                if (a.dist != null) return -1;
+                if (b.dist != null) return 1;
+                return a.name.localeCompare(b.name);
+              }) ?? [];
+            return (
+              <select
+                value={selectedCustomer}
+                onChange={(e) => setSelectedCustomer(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Select customer{routeCenter ? ' (sorted by proximity)' : ''}...</option>
+                {available.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} - {c.address}{c.dist != null ? ` (${Math.round(c.dist * 10) / 10} mi)` : ''}
+                  </option>
+                ))}
+              </select>
+            );
+          })()}
           <button
             onClick={handleAddStop}
             disabled={!selectedCustomer || addStop.isPending}
@@ -668,10 +773,13 @@ export function RoutesTab({ orgId }: { orgId: string }) {
   );
 }
 
-function SortableStop({ stop, index, onRemove }: {
+function SortableStop({ stop, index, onRemove, isCompleted, onToggleComplete, isToday }: {
   stop: { id: string; customers: { name: string; address: string }; estimated_duration_minutes: number };
   index: number;
   onRemove: () => void;
+  isCompleted: boolean;
+  onToggleComplete: () => void;
+  isToday: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stop.id });
   const style = {
@@ -681,15 +789,28 @@ function SortableStop({ stop, index, onRemove }: {
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-3 bg-[#F8FAFC] rounded-lg px-3 py-2.5 group">
+    <div ref={setNodeRef} style={style} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 group ${isCompleted ? 'bg-[#10B981]/5' : 'bg-[#F8FAFC]'}`}>
       <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-[#CBD5E1] hover:text-[#94A3B8] touch-none">
         <GripVertical size={14} />
       </button>
-      <div className="w-6 h-6 rounded-full bg-[#0066FF]/8 text-[#0066FF] flex items-center justify-center text-xs font-bold shrink-0">
-        {index + 1}
-      </div>
+      {isToday ? (
+        <button
+          onClick={onToggleComplete}
+          className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition"
+        >
+          {isCompleted ? (
+            <CheckCircle2 size={18} className="text-[#10B981]" />
+          ) : (
+            <Circle size={18} className="text-[#CBD5E1] hover:text-[#0066FF]" />
+          )}
+        </button>
+      ) : (
+        <div className="w-6 h-6 rounded-full bg-[#0066FF]/8 text-[#0066FF] flex items-center justify-center text-xs font-bold shrink-0">
+          {index + 1}
+        </div>
+      )}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[#1A1A2E] truncate">{stop.customers?.name}</p>
+        <p className={`text-sm font-medium truncate ${isCompleted ? 'text-[#94A3B8] line-through' : 'text-[#1A1A2E]'}`}>{stop.customers?.name}</p>
         <p className="text-xs text-[#94A3B8] truncate">{stop.customers?.address}</p>
       </div>
       <span className="text-xs text-[#94A3B8] tabular-nums">{stop.estimated_duration_minutes}m</span>
