@@ -54,6 +54,37 @@ function buildMapsUrl(stops: { customers: { address?: string; latitude?: number 
   return `https://maps.apple.com/?daddr=${waypoints.join('&daddr=')}`;
 }
 
+// Build Google Maps multi-stop directions URL
+function buildGoogleMapsUrl(stops: { customers: { address?: string; latitude?: number | null; longitude?: number | null } }[]): string | null {
+  const coords = stops
+    .filter(s => s.customers?.latitude && s.customers?.longitude)
+    .map(s => ({ lat: s.customers.latitude!, lng: s.customers.longitude! }));
+  if (coords.length < 2) return null;
+  const origin = `${coords[0].lat},${coords[0].lng}`;
+  const destination = `${coords[coords.length - 1].lat},${coords[coords.length - 1].lng}`;
+  const waypts = coords.slice(1, -1).map(c => `${c.lat},${c.lng}`).join('|');
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypts ? `&waypoints=${waypts}` : ''}`;
+}
+
+// Suggest rebalancing: find routes with too many/few stops
+function getRebalanceSuggestions(routes: { id: string; name: string; day_of_week: number; route_stops?: { id: string }[] }[]): string[] {
+  if (routes.length < 2) return [];
+  const stopCounts = routes.map(r => ({ name: r.name, count: r.route_stops?.length ?? 0 }));
+  const avg = stopCounts.reduce((s, r) => s + r.count, 0) / stopCounts.length;
+  if (avg === 0) return [];
+  const suggestions: string[] = [];
+  const overloaded = stopCounts.filter(r => r.count > avg * 1.5 && r.count >= 3);
+  const underloaded = stopCounts.filter(r => r.count < avg * 0.5 && r.count >= 1);
+  for (const heavy of overloaded) {
+    if (underloaded.length > 0) {
+      suggestions.push(`Move stops from "${heavy.name}" (${heavy.count}) to "${underloaded[0].name}" (${underloaded[0].count}) for better balance`);
+    } else {
+      suggestions.push(`"${heavy.name}" has ${heavy.count} stops — consider splitting into two routes`);
+    }
+  }
+  return suggestions;
+}
+
 // Route efficiency: ratio of straight-line distance to actual route distance (higher = more efficient)
 function routeEfficiency(stops: { customers: { latitude?: number | null; longitude?: number | null } }[]): number | null {
   const coords = stops
@@ -271,6 +302,24 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                 </p>
               </div>
             )}
+            {/* Rebalancing Suggestions */}
+            {(() => {
+              const suggestions = getRebalanceSuggestions(routes);
+              if (suggestions.length === 0) return null;
+              return (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-blue-800 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <BarChart3 size={10} /> Rebalancing Suggestions
+                  </p>
+                  {suggestions.map((s, i) => (
+                    <p key={i} className="text-xs text-blue-700 flex items-start gap-1.5">
+                      <span className="w-1 h-1 bg-blue-400 rounded-full mt-1.5 shrink-0" />
+                      {s}
+                    </p>
+                  ))}
+                </div>
+              );
+            })()}
             {routes.length >= 2 && totalStops >= 4 && (
               <button
                 onClick={async () => {
@@ -359,6 +408,7 @@ export function RoutesTab({ orgId }: { orgId: string }) {
             const routeDist = calcRouteDistance(stops);
             const driveMinutes = routeDist != null ? estimateDriveMinutes(routeDist, stops.length) : null;
             const mapsUrl = buildMapsUrl(stops);
+            const googleMapsUrl = buildGoogleMapsUrl(stops);
             const ungeocodedCount = stops.filter(s => !s.customers?.latitude || !s.customers?.longitude).length;
             const efficiency = routeEfficiency(stops);
             const routeFuel = routeDist != null ? estimateFuelCost(routeDist) : null;
@@ -537,10 +587,21 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                               href={mapsUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="py-2.5 px-4 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC] transition flex items-center justify-center gap-2"
+                              className="py-2.5 px-3 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC] transition flex items-center justify-center gap-1.5"
+                              title="Open in Apple Maps"
                             >
                               <Navigation size={14} />
-                              Maps
+                            </a>
+                          )}
+                          {googleMapsUrl && (
+                            <a
+                              href={googleMapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="py-2.5 px-3 bg-[#4285F4] text-white rounded-lg text-sm font-medium hover:bg-[#3367D6] transition flex items-center justify-center gap-1.5"
+                              title="Open in Google Maps"
+                            >
+                              <MapPin size={14} />
                             </a>
                           )}
                           {stops.length >= 2 && (
