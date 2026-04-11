@@ -109,6 +109,68 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
   const paidCents = invoices?.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_cents, 0) ?? 0;
   const lastServiceDate = serviceLogs?.[0]?.service_date;
 
+  // Pool Health Score (0-100) — composite of water quality, service consistency, and equipment
+  const healthScore = (() => {
+    let score = 0;
+    let factors = 0;
+
+    // Water quality factor (0-40 points)
+    if (serviceLogs?.length) {
+      const latest = serviceLogs[0];
+      const checks = [
+        { val: latest.ph_level, min: 7.2, max: 7.6, wideMin: 7.0, wideMax: 7.8 },
+        { val: latest.chlorine_level, min: 1, max: 3, wideMin: 0.5, wideMax: 5 },
+        { val: latest.alkalinity, min: 80, max: 120, wideMin: 60, wideMax: 150 },
+        { val: latest.cya, min: 30, max: 50, wideMin: 20, wideMax: 70 },
+      ].filter(c => c.val != null);
+      if (checks.length > 0) {
+        const waterScore = checks.reduce((sum, c) => {
+          if (c.val! >= c.min && c.val! <= c.max) return sum + 40 / checks.length;
+          if (c.val! >= c.wideMin && c.val! <= c.wideMax) return sum + 25 / checks.length;
+          return sum;
+        }, 0);
+        score += waterScore;
+        factors++;
+      }
+    }
+
+    // Service consistency factor (0-30 points)
+    if (serviceLogs && serviceLogs.length >= 2) {
+      const dates = serviceLogs.slice(0, 10).map(l => new Date(l.service_date + 'T00:00:00').getTime());
+      const intervals: number[] = [];
+      for (let i = 0; i < dates.length - 1; i++) {
+        intervals.push((dates[i] - dates[i + 1]) / (1000 * 60 * 60 * 24));
+      }
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const expectedInterval = customer.service_frequency === 'weekly' ? 7 : customer.service_frequency === 'biweekly' ? 14 : 30;
+      const consistency = Math.max(0, 1 - Math.abs(avgInterval - expectedInterval) / expectedInterval);
+      score += consistency * 30;
+      factors++;
+    }
+
+    // Recency factor (0-30 points)
+    if (lastServiceDate) {
+      const daysSince = Math.floor((Date.now() - new Date(lastServiceDate + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24));
+      const expectedDays = customer.service_frequency === 'weekly' ? 7 : customer.service_frequency === 'biweekly' ? 14 : 30;
+      if (daysSince <= expectedDays) score += 30;
+      else if (daysSince <= expectedDays * 1.5) score += 20;
+      else if (daysSince <= expectedDays * 2) score += 10;
+      factors++;
+    }
+
+    if (factors === 0) return null;
+    return Math.round(score);
+  })();
+
+  // Seasonal tip
+  const seasonalTip = (() => {
+    const month = new Date().getMonth();
+    if (month >= 2 && month <= 4) return { season: 'Spring', tip: 'Time to open your pool! Check equipment, balance chemicals, and clear debris after winter.', color: 'text-emerald-600 bg-emerald-50' };
+    if (month >= 5 && month <= 7) return { season: 'Summer', tip: 'Peak swim season — run your pump 8-12 hours daily and monitor chlorine levels closely.', color: 'text-blue-600 bg-blue-50' };
+    if (month >= 8 && month <= 10) return { season: 'Fall', tip: 'Keep leaves out with a cover and reduce pump runtime as temperatures drop.', color: 'text-amber-600 bg-amber-50' };
+    return { season: 'Winter', tip: 'Protect pipes from freezing. Run the pump during cold snaps and maintain chemical levels.', color: 'text-slate-600 bg-slate-50' };
+  })();
+
   // Water quality grade (A-F based on how many readings are in ideal range)
   const waterGrade = (() => {
     if (!serviceLogs?.length) return null;
@@ -177,6 +239,39 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
         </header>
 
         <main className="px-4 py-5 space-y-5">
+          {/* Pool Health Score */}
+          {healthScore != null && (
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-5">
+              <div className="flex items-center gap-5">
+                {/* Circular gauge */}
+                <div className="relative w-20 h-20 shrink-0">
+                  <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="#F1F5F9" strokeWidth="6" />
+                    <circle
+                      cx="40" cy="40" r="34" fill="none"
+                      stroke={healthScore >= 75 ? '#10B981' : healthScore >= 50 ? '#F59E0B' : '#EF4444'}
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      strokeDasharray={`${(healthScore / 100) * 213.6} 213.6`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className={`text-xl font-bold ${healthScore >= 75 ? 'text-emerald-600' : healthScore >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                      {healthScore}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-[#1A1A2E]">Pool Health Score</h3>
+                  <p className={`text-xs font-medium mt-0.5 ${healthScore >= 75 ? 'text-emerald-600' : healthScore >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                    {healthScore >= 90 ? 'Excellent' : healthScore >= 75 ? 'Great' : healthScore >= 50 ? 'Good — Room for Improvement' : 'Needs Attention'}
+                  </p>
+                  <p className="text-[10px] text-[#94A3B8] mt-1">Based on water quality, service consistency, and recency</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Account Summary Card */}
           <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
             <div className="grid grid-cols-2 divide-x divide-[#E2E8F0]">
@@ -198,8 +293,15 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                   next.setHours(0, 0, 0, 0);
                   const diffDays = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
                   const label = diffDays === 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : `in ${diffDays} days`;
+                  const expectedDays = customer.service_frequency === 'weekly' ? 7 : customer.service_frequency === 'biweekly' ? 14 : 30;
+                  const progress = Math.min(100, Math.round(((expectedDays - diffDays) / expectedDays) * 100));
                   return (
-                    <p className="text-[10px] text-[#0066FF] font-medium mt-0.5">{label}</p>
+                    <>
+                      <p className="text-[10px] text-[#0066FF] font-medium mt-0.5">{label}</p>
+                      <div className="w-full h-1 bg-[#F1F5F9] rounded-full mt-2 overflow-hidden">
+                        <div className="h-full bg-[#0066FF] rounded-full transition-all" style={{ width: `${Math.max(5, progress)}%` }} />
+                      </div>
+                    </>
                   );
                 })()}
               </div>
@@ -212,6 +314,10 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                 <p className="text-sm font-semibold text-[#1A1A2E] mt-0.5">
                   {lastServiceDate ? formatDate(lastServiceDate) : 'None yet'}
                 </p>
+                {lastServiceDate && (() => {
+                  const daysSince = Math.floor((Date.now() - new Date(lastServiceDate + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24));
+                  return <p className="text-[10px] text-[#94A3B8] mt-0.5">{daysSince === 0 ? 'Today' : `${daysSince} day${daysSince !== 1 ? 's' : ''} ago`}</p>;
+                })()}
               </div>
             </div>
             {/* Account Standing */}
@@ -894,6 +1000,14 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             )}
           </CollapsibleSection>
         </main>
+
+        {/* Seasonal Tip */}
+        <div className="px-4 pb-2">
+          <div className={`rounded-xl border border-[#E2E8F0] px-4 py-3 ${seasonalTip.color}`}>
+            <p className="text-xs font-semibold mb-1">{seasonalTip.season} Pool Tip</p>
+            <p className="text-xs opacity-80">{seasonalTip.tip}</p>
+          </div>
+        </div>
 
         {/* Service Status Banner */}
         <div className="px-4 pb-2">
