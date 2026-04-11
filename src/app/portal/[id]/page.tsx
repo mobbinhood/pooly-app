@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, Waves, Thermometer, Shield, BarChart3, Phone, Mail, User, Camera, Lightbulb } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, Waves, Thermometer, Shield, BarChart3, Phone, Mail, User, Camera, Lightbulb, Activity, Share2, Zap } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
-import { CollapsibleSection, ServiceRequestForm, ServiceFeedbackWidget } from './portal-client';
+import { CollapsibleSection, ServiceRequestForm, ServiceFeedbackWidget, SharePortalButton } from './portal-client';
 
 async function getSupabase() {
   const cookieStore = await cookies();
@@ -196,6 +196,80 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
     ?.flatMap(log => (log.photos as string[] ?? []).map(url => ({ url, date: log.service_date })))
     .slice(0, 8) ?? [];
 
+  // Health score trend (calculate for last 6 visits)
+  const healthTrend = (() => {
+    if (!serviceLogs || serviceLogs.length < 3) return null;
+    const scores: { date: string; score: number }[] = [];
+    for (let idx = Math.min(5, serviceLogs.length - 1); idx >= 0; idx--) {
+      const log = serviceLogs[idx];
+      let score = 0;
+      let factors = 0;
+      // Water quality
+      const checks = [
+        { val: log.ph_level, min: 7.2, max: 7.6, wideMin: 7.0, wideMax: 7.8 },
+        { val: log.chlorine_level, min: 1, max: 3, wideMin: 0.5, wideMax: 5 },
+        { val: log.alkalinity, min: 80, max: 120, wideMin: 60, wideMax: 150 },
+        { val: log.cya, min: 30, max: 50, wideMin: 20, wideMax: 70 },
+      ].filter(c => c.val != null);
+      if (checks.length > 0) {
+        score += checks.reduce((sum, c) => {
+          if (c.val! >= c.min && c.val! <= c.max) return sum + 40 / checks.length;
+          if (c.val! >= c.wideMin && c.val! <= c.wideMax) return sum + 25 / checks.length;
+          return sum;
+        }, 0);
+        factors++;
+      }
+      // Recency: for historical points, check distance from previous visit
+      if (idx > 0 || lastServiceDate) {
+        const daysSince = idx === 0
+          ? Math.floor((Date.now() - new Date(log.service_date + 'T00:00:00').getTime()) / 86400000)
+          : 0;
+        const expectedDays = customer.service_frequency === 'weekly' ? 7 : customer.service_frequency === 'biweekly' ? 14 : 30;
+        if (daysSince <= expectedDays) score += 30;
+        else if (daysSince <= expectedDays * 1.5) score += 20;
+        else score += 10;
+        factors++;
+      }
+      if (factors > 0) scores.push({ date: log.service_date, score: Math.round(score) });
+    }
+    if (scores.length < 2) return null;
+    const trend = scores[scores.length - 1].score - scores[0].score;
+    return { scores, trend };
+  })();
+
+  // Service value summary
+  const serviceValue = (() => {
+    if (!serviceLogs || serviceLogs.length === 0) return null;
+    let totalChemicals = 0;
+    let totalMinutes = 0;
+    let equipmentChecks = 0;
+    for (const log of serviceLogs) {
+      const chemicals = (log.chemicals_added ?? []) as ChemicalAdded[];
+      totalChemicals += chemicals.length;
+      totalMinutes += log.time_on_site_minutes ?? 0;
+      const equipment = (log.equipment_status ?? {}) as EquipmentStatus;
+      equipmentChecks += Object.keys(equipment).length;
+    }
+    return {
+      visits: serviceLogs.length,
+      totalChemicals,
+      totalHours: Math.round(totalMinutes / 60 * 10) / 10,
+      equipmentChecks,
+    };
+  })();
+
+  // Equipment health (from latest service log)
+  const equipmentHealth = (() => {
+    if (!serviceLogs?.length) return null;
+    const latest = serviceLogs[0];
+    const equipment = (latest.equipment_status ?? {}) as EquipmentStatus;
+    const entries = Object.entries(equipment).filter(([, v]) => v);
+    if (entries.length === 0) return null;
+    const goodCount = entries.filter(([, v]) => v === 'good').length;
+    const issues = entries.filter(([, v]) => v !== 'good' && v !== 'off');
+    return { entries, goodCount, total: entries.length, issues, date: latest.service_date };
+  })();
+
   // Get assigned technician info
   const assignedTech = (() => {
     if (!routeStops?.length) return null;
@@ -269,6 +343,47 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                   <p className="text-[10px] text-[#94A3B8] mt-1">Based on water quality, service consistency, and recency</p>
                 </div>
               </div>
+              {/* Health Score Trend */}
+              {healthTrend && (
+                <div className="mt-3 pt-3 border-t border-[#F1F5F9]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Recent Trend</span>
+                    <span className={`text-[10px] font-medium flex items-center gap-0.5 ${healthTrend.trend > 0 ? 'text-emerald-600' : healthTrend.trend < 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                      {healthTrend.trend > 0 ? '+' : ''}{healthTrend.trend} pts
+                      {healthTrend.trend > 0 ? <TrendingUp size={10} /> : healthTrend.trend < 0 ? <TrendingDown size={10} /> : <Minus size={10} />}
+                    </span>
+                  </div>
+                  <svg viewBox="0 0 200 32" className="w-full h-8" preserveAspectRatio="none">
+                    {/* Background */}
+                    <rect x="0" y="0" width="200" height="32" fill="none" />
+                    {/* Good zone */}
+                    <rect x="0" y={32 - (75 / 100) * 32} width="200" height={(25 / 100) * 32} fill="#10B981" opacity="0.06" />
+                    {/* Trend line */}
+                    <path
+                      d={healthTrend.scores.map((s, i) => {
+                        const x = (i / (healthTrend.scores.length - 1)) * 200;
+                        const y = 32 - (s.score / 100) * 30 - 1;
+                        return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+                      }).join(' ')}
+                      fill="none"
+                      stroke={healthTrend.trend >= 0 ? '#10B981' : '#EF4444'}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {/* Data points */}
+                    {healthTrend.scores.map((s, i) => (
+                      <circle
+                        key={i}
+                        cx={(i / (healthTrend.scores.length - 1)) * 200}
+                        cy={32 - (s.score / 100) * 30 - 1}
+                        r={i === healthTrend.scores.length - 1 ? 3 : 2}
+                        fill={i === healthTrend.scores.length - 1 ? (healthTrend.trend >= 0 ? '#10B981' : '#EF4444') : '#94A3B8'}
+                      />
+                    ))}
+                  </svg>
+                </div>
+              )}
             </div>
           )}
 
@@ -443,6 +558,68 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
               </div>
             );
           })()}
+
+          {/* Service Value Summary */}
+          {serviceValue && serviceValue.visits >= 2 && (
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap size={14} className="text-[#0066FF]" />
+                <h3 className="text-sm font-semibold text-[#1A1A2E]">Service Value</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-[#F8FAFC] rounded-lg p-2.5 text-center">
+                  <p className="text-lg font-bold text-[#0066FF]">{serviceValue.visits}</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Visits</p>
+                </div>
+                <div className="bg-[#F8FAFC] rounded-lg p-2.5 text-center">
+                  <p className="text-lg font-bold text-[#10B981]">{serviceValue.totalHours}h</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">On-Site</p>
+                </div>
+                <div className="bg-[#F8FAFC] rounded-lg p-2.5 text-center">
+                  <p className="text-lg font-bold text-[#6366F1]">{serviceValue.totalChemicals}</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Chemicals</p>
+                </div>
+                <div className="bg-[#F8FAFC] rounded-lg p-2.5 text-center">
+                  <p className="text-lg font-bold text-[#F59E0B]">{serviceValue.equipmentChecks}</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Equip Checks</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Equipment Health */}
+          {equipmentHealth && (
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Activity size={14} className="text-[#0066FF]" />
+                  <h3 className="text-sm font-semibold text-[#1A1A2E]">Equipment Status</h3>
+                </div>
+                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                  equipmentHealth.issues.length === 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                }`}>
+                  {equipmentHealth.goodCount}/{equipmentHealth.total} Good
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {equipmentHealth.entries.map(([key, status]) => (
+                  <span
+                    key={key}
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium ${getStatusColor(status!)}`}
+                  >
+                    {getEquipmentLabel(key)}: {status!.replace(/_/g, ' ')}
+                  </span>
+                ))}
+              </div>
+              {equipmentHealth.issues.length > 0 && (
+                <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  {equipmentHealth.issues.length} item{equipmentHealth.issues.length !== 1 ? 's' : ''} need{equipmentHealth.issues.length === 1 ? 's' : ''} attention
+                </p>
+              )}
+              <p className="text-[10px] text-[#94A3B8] mt-2">Last checked: {formatDate(equipmentHealth.date)}</p>
+            </div>
+          )}
 
           {/* Water Quality Summary */}
           {serviceLogs && serviceLogs.length > 0 && (() => {
@@ -1027,7 +1204,8 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
           </div>
         </div>
 
-        <footer className="px-4 py-6 text-center">
+        <footer className="px-4 py-6 text-center space-y-3">
+          <SharePortalButton />
           <p className="text-xs text-[#94A3B8]">Powered by Pooly</p>
         </footer>
       </div>

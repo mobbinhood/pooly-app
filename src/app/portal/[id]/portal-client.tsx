@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Send, Loader2, CheckCircle2, MessageSquare, Star } from 'lucide-react';
+import { ChevronDown, ChevronUp, Send, Loader2, CheckCircle2, MessageSquare, Star, Share2, Check } from 'lucide-react';
 
 export function CollapsibleSection({ title, icon, badge, children, defaultOpen = true }: {
   title: string;
@@ -146,6 +146,33 @@ export function ServiceRequestForm({ customerId }: { customerId: string }) {
         </button>
       </form>
     </div>
+  );
+}
+
+export function SharePortalButton() {
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'My Pool Portal', url });
+        return;
+      } catch { /* user cancelled or not supported */ }
+    }
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleShare}
+      className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#0066FF] transition"
+    >
+      {copied ? <Check size={12} className="text-emerald-500" /> : <Share2 size={12} />}
+      {copied ? 'Link copied!' : 'Share this portal'}
+    </button>
   );
 }
 
