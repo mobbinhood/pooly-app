@@ -34,6 +34,9 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  BarChart3,
+  Timer,
+  Activity,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -124,6 +127,43 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       overdueCents: overdue.reduce((s, i) => s + i.total_cents, 0),
     };
   })();
+
+  // Service statistics
+  const serviceStats = (() => {
+    const allLogs = serviceLogs ?? [];
+    if (allLogs.length === 0) return null;
+    const totalServices = allLogs.length;
+    const avgTimeOnSite = allLogs
+      .filter(l => l.time_on_site_minutes != null)
+      .reduce((sum, l, _, arr) => sum + (l.time_on_site_minutes ?? 0) / arr.length, 0);
+    // Average days between services for consistency
+    const dates = allLogs.map(l => new Date(l.service_date).getTime()).sort((a, b) => b - a);
+    let avgGap = 0;
+    if (dates.length >= 2) {
+      const gaps = [];
+      for (let i = 0; i < dates.length - 1; i++) {
+        gaps.push((dates[i] - dates[i + 1]) / (1000 * 60 * 60 * 24));
+      }
+      avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+    }
+    return { totalServices, avgTimeOnSite: Math.round(avgTimeOnSite), avgGapDays: Math.round(avgGap) };
+  })();
+
+  // Billing breakdown
+  const billingStats = (() => {
+    const allInv = invoices ?? [];
+    if (allInv.length === 0) return null;
+    const paid = allInv.filter(i => i.status === 'paid');
+    const totalBilled = allInv.reduce((s, i) => s + i.total_cents, 0);
+    const totalPaid = paid.reduce((s, i) => s + i.total_cents, 0);
+    const avgInvoice = totalBilled / allInv.length;
+    const lastPayment = paid.sort((a, b) =>
+      new Date(b.paid_at ?? b.created_at).getTime() - new Date(a.paid_at ?? a.created_at).getTime()
+    )[0];
+    return { totalBilled, totalPaid, avgInvoice, invoiceCount: allInv.length, paidCount: paid.length, lastPayment };
+  })();
+
+  const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null);
 
   const pools = (customer as { pools?: Pool[] } | undefined)?.pools ?? [];
   const logs = serviceLogs?.slice(0, 10) ?? [];
@@ -297,6 +337,86 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                 </div>
               )}
+            </section>
+          )}
+
+          {/* Service Stats */}
+          {serviceStats && (
+            <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#F1F5F9]">
+                <h2 className="text-sm font-semibold text-[#1A1A2E] flex items-center gap-2">
+                  <BarChart3 size={14} className="text-[#0066FF]" />
+                  Service Stats
+                </h2>
+              </div>
+              <div className="grid grid-cols-3 divide-x divide-[#F1F5F9]">
+                <div className="p-3 text-center">
+                  <Activity size={12} className="text-[#0066FF] mx-auto mb-1" />
+                  <p className="text-lg font-bold text-[#1A1A2E]">{serviceStats.totalServices}</p>
+                  <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Total Visits</p>
+                </div>
+                <div className="p-3 text-center">
+                  <Timer size={12} className="text-[#10B981] mx-auto mb-1" />
+                  <p className="text-lg font-bold text-[#1A1A2E]">{serviceStats.avgTimeOnSite > 0 ? `${serviceStats.avgTimeOnSite}m` : '—'}</p>
+                  <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Avg On Site</p>
+                </div>
+                <div className="p-3 text-center">
+                  <Calendar size={12} className="text-[#64748B] mx-auto mb-1" />
+                  <p className="text-lg font-bold text-[#1A1A2E]">{serviceStats.avgGapDays > 0 ? `${serviceStats.avgGapDays}d` : '—'}</p>
+                  <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Avg Interval</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Billing Summary */}
+          {billingStats && (
+            <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#F1F5F9]">
+                <h2 className="text-sm font-semibold text-[#1A1A2E] flex items-center gap-2">
+                  <DollarSign size={14} className="text-[#10B981]" />
+                  Billing Summary
+                </h2>
+              </div>
+              <div className="p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#64748B]">Total Billed ({billingStats.invoiceCount} invoices)</span>
+                  <span className="text-sm font-semibold text-[#1A1A2E]">${(billingStats.totalBilled / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#64748B]">Total Collected ({billingStats.paidCount} paid)</span>
+                  <span className="text-sm font-semibold text-[#10B981]">${(billingStats.totalPaid / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#64748B]">Avg Invoice</span>
+                  <span className="text-sm font-semibold text-[#1A1A2E]">${(billingStats.avgInvoice / 100).toFixed(2)}</span>
+                </div>
+                {billingStats.totalBilled > 0 && (
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-[#94A3B8] font-medium uppercase">Collection Rate</span>
+                      <span className="text-xs font-semibold text-[#1A1A2E]">
+                        {Math.round((billingStats.totalPaid / billingStats.totalBilled) * 100)}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#10B981] rounded-full transition-all"
+                        style={{ width: `${Math.min(100, Math.round((billingStats.totalPaid / billingStats.totalBilled) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {billingStats.lastPayment && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-[#64748B]">Last Payment</span>
+                    <span className="text-xs text-[#94A3B8]">
+                      {format(new Date(billingStats.lastPayment.paid_at ?? billingStats.lastPayment.created_at), 'MMM d, yyyy')}
+                      {' · '}${(billingStats.lastPayment.total_cents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
@@ -754,27 +874,65 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                 {invoices.map((inv) => {
                   const isOverdue = inv.status === 'sent' && new Date(inv.due_date + 'T00:00:00') < new Date();
                   const displayStatus = isOverdue ? 'overdue' : inv.status;
+                  const isInvExpanded = expandedInvoice === inv.id;
+                  const items = (inv as { invoice_items?: { id: string; description: string; quantity: number; unit_price_cents: number }[] }).invoice_items ?? [];
                   return (
-                    <div key={inv.id} className="px-4 py-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-[#1A1A2E]">{inv.invoice_number}</p>
-                        <p className="text-xs text-[#94A3B8]">
-                          {format(new Date(inv.issued_date), 'MMM d, yyyy')}
-                          {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                            <> · Due {format(new Date(inv.due_date), 'MMM d')}</>
+                    <div key={inv.id}>
+                      <button
+                        onClick={() => setExpandedInvoice(isInvExpanded ? null : inv.id)}
+                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#F8FAFC] transition"
+                      >
+                        <div className="text-left">
+                          <p className="text-sm font-medium text-[#1A1A2E]">{inv.invoice_number}</p>
+                          <p className="text-xs text-[#94A3B8]">
+                            {format(new Date(inv.issued_date), 'MMM d, yyyy')}
+                            {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                              <> · Due {format(new Date(inv.due_date), 'MMM d')}</>
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-[#1A1A2E]">${(inv.total_cents / 100).toFixed(2)}</p>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                              displayStatus === 'paid' ? 'bg-[#10B981]/10 text-[#10B981]' :
+                              displayStatus === 'overdue' ? 'bg-[#EF4444]/10 text-[#EF4444]' :
+                              displayStatus === 'sent' ? 'bg-[#0066FF]/10 text-[#0066FF]' :
+                              displayStatus === 'cancelled' ? 'bg-[#94A3B8]/10 text-[#94A3B8]' :
+                              'bg-[#F1F5F9] text-[#64748B]'
+                            }`}>{displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}</span>
+                          </div>
+                          {items.length > 0 && (
+                            isInvExpanded ? <ChevronUp size={12} className="text-[#94A3B8]" /> : <ChevronDown size={12} className="text-[#94A3B8]" />
                           )}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-[#1A1A2E]">${(inv.total_cents / 100).toFixed(2)}</p>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                          displayStatus === 'paid' ? 'bg-[#10B981]/10 text-[#10B981]' :
-                          displayStatus === 'overdue' ? 'bg-[#EF4444]/10 text-[#EF4444]' :
-                          displayStatus === 'sent' ? 'bg-[#0066FF]/10 text-[#0066FF]' :
-                          displayStatus === 'cancelled' ? 'bg-[#94A3B8]/10 text-[#94A3B8]' :
-                          'bg-[#F1F5F9] text-[#64748B]'
-                        }`}>{displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}</span>
-                      </div>
+                        </div>
+                      </button>
+                      <AnimatePresence>
+                        {isInvExpanded && items.length > 0 && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="px-4 pb-3">
+                              <div className="bg-[#F8FAFC] rounded-lg p-3 space-y-1.5">
+                                {items.map((item) => (
+                                  <div key={item.id} className="flex items-center justify-between text-xs">
+                                    <span className="text-[#64748B] truncate mr-2">{item.description}</span>
+                                    <span className="text-[#1A1A2E] font-medium tabular-nums shrink-0">
+                                      {item.quantity > 1 && `${item.quantity} × `}${(item.unit_price_cents / 100).toFixed(2)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              {inv.notes && (
+                                <p className="text-[10px] text-[#94A3B8] mt-2 px-1">{inv.notes}</p>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   );
                 })}

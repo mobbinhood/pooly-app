@@ -12,7 +12,7 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car } from 'lucide-react';
+import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car, Gauge, BarChart3, Fuel } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -52,6 +52,38 @@ function buildMapsUrl(stops: { customers: { address?: string; latitude?: number 
   if (coords.length < 2) return null;
   const waypoints = coords.map(c => `${c.lat},${c.lng}`);
   return `https://maps.apple.com/?daddr=${waypoints.join('&daddr=')}`;
+}
+
+// Route efficiency: ratio of straight-line distance to actual route distance (higher = more efficient)
+function routeEfficiency(stops: { customers: { latitude?: number | null; longitude?: number | null } }[]): number | null {
+  const coords = stops
+    .filter(s => s.customers?.latitude && s.customers?.longitude)
+    .map(s => ({ lat: s.customers.latitude!, lng: s.customers.longitude! }));
+  if (coords.length < 3) return null;
+  const routeDist = calcRouteDistance(stops);
+  if (!routeDist || routeDist === 0) return null;
+  // Sum of all pairwise min distances as baseline
+  const straightLine = haversine(coords[0].lat, coords[0].lng, coords[coords.length - 1].lat, coords[coords.length - 1].lng);
+  if (straightLine === 0) return 100;
+  // Efficiency = how close to optimal (straight-line / actual * 100), capped at 100
+  return Math.min(100, Math.round((straightLine / routeDist) * 100));
+}
+
+function efficiencyColor(score: number): string {
+  if (score >= 70) return 'text-[#10B981]';
+  if (score >= 40) return 'text-[#F59E0B]';
+  return 'text-[#EF4444]';
+}
+
+function efficiencyLabel(score: number): string {
+  if (score >= 70) return 'Efficient';
+  if (score >= 40) return 'Fair';
+  return 'Needs Optimization';
+}
+
+// Estimate fuel cost at ~$3.50/gal, 20 mpg for service truck
+function estimateFuelCost(miles: number): number {
+  return Math.round((miles / 20) * 3.5 * 100) / 100;
 }
 
 export function RoutesTab({ orgId }: { orgId: string }) {
@@ -157,6 +189,14 @@ export function RoutesTab({ orgId }: { orgId: string }) {
           sum + (r.route_stops ?? []).reduce((s, stop) => s + stop.estimated_duration_minutes, 0), 0);
         const ungeocodedTotal = routes.reduce((sum, r) =>
           sum + (r.route_stops ?? []).filter(s => !s.customers?.latitude || !s.customers?.longitude).length, 0);
+        const fuelCost = estimateFuelCost(totalMiles);
+        // Workload balance: stops per day distribution
+        const dayDistribution = Array(7).fill(0);
+        routes.forEach(r => { dayDistribution[r.day_of_week] += r.route_stops?.length ?? 0; });
+        const activeDays = dayDistribution.filter(d => d > 0);
+        const avgPerDay = activeDays.length > 0 ? activeDays.reduce((s, d) => s + d, 0) / activeDays.length : 0;
+        const maxDev = activeDays.length > 1 ? Math.max(...activeDays.map(d => Math.abs(d - avgPerDay))) : 0;
+        const isBalanced = avgPerDay > 0 ? maxDev / avgPerDay < 0.4 : true;
         return (
           <div className="space-y-3">
             <div className="grid grid-cols-4 gap-2">
@@ -173,10 +213,39 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                 <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">{Math.round(totalMiles * 10) / 10}</p>
               </div>
               <div className="bg-white rounded-xl p-3 border border-[#E2E8F0] text-center">
-                <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Svc Time</p>
-                <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">{Math.round(totalServiceMinutes / 60)}h</p>
+                <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Fuel Est</p>
+                <p className="text-lg font-bold text-[#1A1A2E] mt-0.5">${fuelCost}</p>
               </div>
             </div>
+            {/* Workload Balance */}
+            {activeDays.length >= 2 && (
+              <div className="bg-white rounded-xl p-3 border border-[#E2E8F0]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider flex items-center gap-1">
+                    <BarChart3 size={10} /> Daily Workload
+                  </p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isBalanced ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>
+                    {isBalanced ? 'Balanced' : 'Uneven'}
+                  </span>
+                </div>
+                <div className="flex items-end gap-1 h-8">
+                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => {
+                    const count = dayDistribution[(i + 1) % 7]; // Monday=1
+                    const maxCount = Math.max(...dayDistribution, 1);
+                    const height = count > 0 ? Math.max(20, (count / maxCount) * 100) : 4;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                        <div
+                          className={`w-full rounded-sm transition-all ${count > 0 ? 'bg-[#0066FF]' : 'bg-[#F1F5F9]'}`}
+                          style={{ height: `${height}%` }}
+                        />
+                        <span className="text-[8px] text-[#94A3B8]">{day}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {ungeocodedTotal > 0 && (
               <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
                 <AlertTriangle size={13} className="text-amber-500 shrink-0" />
@@ -222,6 +291,8 @@ export function RoutesTab({ orgId }: { orgId: string }) {
             const driveMinutes = routeDist != null ? estimateDriveMinutes(routeDist, stops.length) : null;
             const mapsUrl = buildMapsUrl(stops);
             const ungeocodedCount = stops.filter(s => !s.customers?.latitude || !s.customers?.longitude).length;
+            const efficiency = routeEfficiency(stops);
+            const routeFuel = routeDist != null ? estimateFuelCost(routeDist) : null;
 
             return (
               <motion.div
@@ -237,12 +308,24 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                     {DAY_NAMES[route.day_of_week].slice(0, 3)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[#1A1A2E] text-sm">{route.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-[#1A1A2E] text-sm">{route.name}</p>
+                      {efficiency != null && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          efficiency >= 70 ? 'bg-[#10B981]/10 text-[#10B981]' :
+                          efficiency >= 40 ? 'bg-[#F59E0B]/10 text-[#F59E0B]' :
+                          'bg-[#EF4444]/10 text-[#EF4444]'
+                        }`}>
+                          <Gauge size={8} className="inline mr-0.5" />{efficiency}%
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-[#64748B]">
                       {stops.length} stops
                       {totalTime > 0 && <> · <Clock size={10} className="inline" /> ~{Math.round(totalTime / 60)}h {totalTime % 60}m</>}
                       {routeDist != null && <> · <Route size={10} className="inline" /> {routeDist} mi</>}
                       {driveMinutes != null && <> · <Car size={10} className="inline" /> ~{driveMinutes >= 60 ? `${Math.floor(driveMinutes / 60)}h ${driveMinutes % 60}m` : `${driveMinutes}m`} drive</>}
+                      {routeFuel != null && <> · <Fuel size={10} className="inline" /> ${routeFuel}</>}
                       {route.users?.name && <> · {route.users.name}</>}
                     </p>
                   </div>
