@@ -66,6 +66,65 @@ function twoOptImprove(stops: Stop[], maxIterations = 150): Stop[] {
   return route;
 }
 
+// 3-opt segment relocation: move segments of 2-3 consecutive stops to better positions
+function threeOptSegmentRelocate(stops: Stop[], maxIterations = 50): Stop[] {
+  if (stops.length <= 4) return stops;
+
+  const route = [...stops];
+  let improved = true;
+  let iterations = 0;
+
+  while (improved && iterations < maxIterations) {
+    improved = false;
+    iterations++;
+
+    for (let segLen = 2; segLen <= Math.min(3, route.length - 2); segLen++) {
+      for (let i = 0; i < route.length - segLen; i++) {
+        const segStart = i;
+        const segEnd = i + segLen - 1;
+
+        // Cost of removing segment from current position
+        const beforeSeg = segStart > 0 ? haversine(route[segStart - 1].lat, route[segStart - 1].lng, route[segStart].lat, route[segStart].lng) : 0;
+        const afterSeg = segEnd < route.length - 1 ? haversine(route[segEnd].lat, route[segEnd].lng, route[segEnd + 1].lat, route[segEnd + 1].lng) : 0;
+        const bridgeCost = (segStart > 0 && segEnd < route.length - 1)
+          ? haversine(route[segStart - 1].lat, route[segStart - 1].lng, route[segEnd + 1].lat, route[segEnd + 1].lng)
+          : 0;
+        const removeSaving = beforeSeg + afterSeg - bridgeCost;
+
+        let bestInsert = -1;
+        let bestCost = 0;
+
+        for (let j = 0; j < route.length - 1; j++) {
+          // Skip positions that overlap with segment
+          if (j >= segStart - 1 && j <= segEnd) continue;
+
+          const currentEdge = haversine(route[j].lat, route[j].lng, route[j + 1].lat, route[j + 1].lng);
+          const insertCost = haversine(route[j].lat, route[j].lng, route[segStart].lat, route[segStart].lng)
+            + haversine(route[segEnd].lat, route[segEnd].lng, route[j + 1].lat, route[j + 1].lng)
+            - currentEdge;
+
+          const netGain = removeSaving - insertCost;
+          if (netGain > bestCost + 0.001) {
+            bestCost = netGain;
+            bestInsert = j;
+          }
+        }
+
+        if (bestInsert >= 0) {
+          const segment = route.splice(segStart, segLen);
+          const insertAt = bestInsert >= segStart ? bestInsert - segLen + 1 : bestInsert + 1;
+          route.splice(insertAt, 0, ...segment);
+          improved = true;
+          break;
+        }
+      }
+      if (improved) break;
+    }
+  }
+
+  return route;
+}
+
 // Or-opt: try moving single stops to better positions
 function orOptImprove(stops: Stop[], maxIterations = 100): Stop[] {
   if (stops.length <= 3) return stops;
@@ -236,7 +295,10 @@ export async function POST(request: Request) {
   const twoOpted = twoOptImprove(nnOrder);
 
   // Step 3: Or-opt single-stop relocation
-  const optimized = orOptImprove(twoOpted);
+  const orOpted = orOptImprove(twoOpted);
+
+  // Step 4: 3-opt segment relocation
+  const optimized = threeOptSegmentRelocate(orOpted);
 
   const optimizedDist = totalDistance(optimized);
   const savedMiles = Math.max(0, originalDist - optimizedDist);
@@ -260,6 +322,21 @@ export async function POST(request: Request) {
   // Detect clusters (geographic groupings) for insight
   const clusters = detectClusters(optimized, 2.0); // 2 mile cluster radius
 
+  // Build cluster details with center, count, and radius
+  const cluster_details = clusters.map(cluster => {
+    const center_lat = cluster.reduce((s, st) => s + st.lat, 0) / cluster.length;
+    const center_lng = cluster.reduce((s, st) => s + st.lng, 0) / cluster.length;
+    const radius_miles = cluster.length > 1
+      ? Math.round(Math.max(...cluster.map(st => haversine(center_lat, center_lng, st.lat, st.lng))) * 10) / 10
+      : 0;
+    return { center_lat, center_lng, stop_count: cluster.length, radius_miles };
+  });
+
+  // Environmental savings calculations
+  const co2_saved_lbs = Math.round(savedMiles * 0.89 * 10) / 10;
+  const fuel_saved_gallons = Math.round((savedMiles / 18) * 100) / 100;
+  const time_saved_minutes = Math.round((savedMiles / 25) * 60);
+
   return NextResponse.json({
     message: `Route optimized — saved ${savedMiles.toFixed(1)} miles`,
     stops: optimized.length,
@@ -270,7 +347,11 @@ export async function POST(request: Request) {
     geocoded: geocodedCount,
     legs,
     clusters: clusters.length,
+    cluster_details,
     longest_leg: legs.length > 0 ? Math.max(...legs.map(l => l.miles)) : 0,
+    co2_saved_lbs,
+    fuel_saved_gallons,
+    time_saved_minutes,
   });
 }
 

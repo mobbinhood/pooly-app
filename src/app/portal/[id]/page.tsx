@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, Waves, Thermometer, Shield, BarChart3, Phone, Mail, User, Camera } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, Waves, Thermometer, Shield, BarChart3, Phone, Mail, User, Camera, Lightbulb } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
-import { CollapsibleSection, ServiceRequestForm } from './portal-client';
+import { CollapsibleSection, ServiceRequestForm, ServiceFeedbackWidget } from './portal-client';
 
 async function getSupabase() {
   const cookieStore = await cookies();
@@ -191,6 +191,17 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                     ? nextServiceDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
                     : 'Not scheduled'}
                 </p>
+                {nextServiceDate && (() => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const next = new Date(nextServiceDate);
+                  next.setHours(0, 0, 0, 0);
+                  const diffDays = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                  const label = diffDays === 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : `in ${diffDays} days`;
+                  return (
+                    <p className="text-[10px] text-[#0066FF] font-medium mt-0.5">{label}</p>
+                  );
+                })()}
               </div>
               {/* Last Service */}
               <div className="p-4 text-center">
@@ -235,6 +246,14 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
 
           {/* Service Request */}
           <ServiceRequestForm customerId={customer.id} />
+
+          {/* Service Feedback - show within 3 days of last service */}
+          {serviceLogs && serviceLogs.length > 0 && (() => {
+            const lastDate = new Date(serviceLogs[0].service_date + 'T00:00:00');
+            const daysSince = Math.floor((Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysSince > 3) return null;
+            return <ServiceFeedbackWidget customerId={customer.id} serviceLogId={serviceLogs[0].id} />;
+          })()}
 
           {/* Service Photos Gallery */}
           {servicePhotos.length > 0 && (
@@ -440,6 +459,47 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                   })}
                 </div>
               </CollapsibleSection>
+            );
+          })()}
+
+          {/* Pool Care Tips - shown only when water quality has issues */}
+          {serviceLogs && serviceLogs.length > 0 && (() => {
+            const latest = serviceLogs[0];
+            const tips: string[] = [];
+            if (latest.ph_level != null) {
+              if (latest.ph_level < 7.2) tips.push('Add soda ash to raise pH. Target: 7.2-7.6');
+              if (latest.ph_level > 7.6) tips.push('Add muriatic acid to lower pH. Target: 7.2-7.6');
+            }
+            if (latest.chlorine_level != null) {
+              if (latest.chlorine_level < 1) tips.push('Shock the pool to boost chlorine levels. Target: 1-3 ppm');
+              if (latest.chlorine_level > 3) tips.push('Let chlorine dissipate naturally or reduce dosing. Target: 1-3 ppm');
+            }
+            if (latest.alkalinity != null) {
+              if (latest.alkalinity < 80) tips.push('Add sodium bicarbonate (baking soda). Target: 80-120 ppm');
+              if (latest.alkalinity > 120) tips.push('Add muriatic acid to lower alkalinity. Target: 80-120 ppm');
+            }
+            if (latest.cya != null) {
+              if (latest.cya < 30) tips.push('Add cyanuric acid (stabilizer). Target: 30-50 ppm');
+              if (latest.cya > 50) tips.push('Partially drain and refill pool to reduce CYA. Target: 30-50 ppm');
+            }
+            if (tips.length === 0) return null;
+            return (
+              <div className="bg-white rounded-xl border border-amber-300 overflow-hidden">
+                <div className="px-4 py-3 flex items-center gap-2">
+                  <div className="w-7 h-7 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
+                    <Lightbulb size={14} className="text-amber-500" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-[#1A1A2E]">Pool Care Tips</h3>
+                </div>
+                <ul className="px-4 pb-4 space-y-2">
+                  {tips.map((tip, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-[#64748B]">
+                      <span className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1 shrink-0" />
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             );
           })()}
 

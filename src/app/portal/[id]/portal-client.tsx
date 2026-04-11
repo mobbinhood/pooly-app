@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Send, Loader2, CheckCircle2, MessageSquare } from 'lucide-react';
+import { ChevronDown, ChevronUp, Send, Loader2, CheckCircle2, MessageSquare, Star } from 'lucide-react';
 
 export function CollapsibleSection({ title, icon, badge, children, defaultOpen = true }: {
   title: string;
@@ -145,6 +145,119 @@ export function ServiceRequestForm({ customerId }: { customerId: string }) {
           Submit Request
         </button>
       </form>
+    </div>
+  );
+}
+
+const EMOJI_LABELS = ['Poor', 'Fair', 'Good', 'Great', 'Excellent'] as const;
+
+export function ServiceFeedbackWidget({ customerId, serviceLogId }: { customerId: string; serviceLogId: string }) {
+  const [rating, setRating] = useState(0);
+  const [hoveredStar, setHoveredStar] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const inputClass = "w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-[#1A1A2E] text-sm placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition";
+
+  const handleSubmit = async () => {
+    if (rating === 0) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/portal/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: customerId,
+          service_log_id: serviceLogId,
+          rating,
+          comment: comment.trim() || undefined,
+        }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      }
+    } catch { /* silently fail */ }
+    finally { setSubmitting(false); }
+  };
+
+  if (submitted) {
+    return (
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+        <CheckCircle2 size={20} className="text-emerald-500 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-emerald-800">Thanks for your feedback!</p>
+          <p className="text-xs text-emerald-600 mt-0.5">Your rating helps us improve our service.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const displayRating = hoveredStar || rating;
+
+  return (
+    <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#F1F5F9]">
+        <h3 className="text-sm font-semibold text-[#1A1A2E] flex items-center gap-2">
+          <Star size={16} className="text-amber-500" />
+          Rate Your Last Service
+        </h3>
+        <p className="text-xs text-[#64748B] mt-0.5">How was your recent pool service?</p>
+      </div>
+      <div className="p-4 space-y-3">
+        {/* Star Rating */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setRating(star)}
+                onMouseEnter={() => setHoveredStar(star)}
+                onMouseLeave={() => setHoveredStar(0)}
+                className="p-1 transition-transform hover:scale-110"
+              >
+                <Star
+                  size={28}
+                  className={`transition-colors ${
+                    star <= displayRating
+                      ? 'text-amber-400 fill-amber-400'
+                      : 'text-[#E2E8F0]'
+                  }`}
+                />
+              </button>
+            ))}
+          </div>
+          {displayRating > 0 && (
+            <p className="text-xs font-medium text-[#64748B]">
+              {EMOJI_LABELS[displayRating - 1]}
+            </p>
+          )}
+        </div>
+
+        {/* Optional Comment */}
+        <div>
+          <label className="block text-xs font-medium text-[#64748B] mb-1">Comments (optional)</label>
+          <textarea
+            value={comment}
+            onChange={e => setComment(e.target.value)}
+            className={inputClass + ' resize-none'}
+            rows={2}
+            placeholder="Any feedback about your service..."
+          />
+        </div>
+
+        {/* Submit */}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting || rating === 0}
+          className="w-full py-2.5 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC] transition disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          Submit Feedback
+        </button>
+      </div>
     </div>
   );
 }

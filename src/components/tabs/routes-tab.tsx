@@ -12,7 +12,7 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car, Gauge, BarChart3, Fuel } from 'lucide-react';
+import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car, Gauge, BarChart3, Fuel, Leaf } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -105,6 +105,8 @@ export function RoutesTab({ orgId }: { orgId: string }) {
   const [optimizeResults, setOptimizeResults] = useState<Record<string, {
     original_miles: number; total_miles: number; saved_miles: number; saved_pct: number;
     clusters: number; longest_leg: number; geocoded: number;
+    co2_saved_lbs: number; fuel_saved_gallons: number; time_saved_minutes: number;
+    cluster_details: { center_lat: number; center_lng: number; stop_count: number; radius_miles: number }[];
   }>>({});
   const queryClient = useQueryClient();
 
@@ -127,6 +129,10 @@ export function RoutesTab({ orgId }: { orgId: string }) {
             clusters: data.clusters,
             longest_leg: data.longest_leg,
             geocoded: data.geocoded,
+            co2_saved_lbs: data.co2_saved_lbs ?? 0,
+            fuel_saved_gallons: data.fuel_saved_gallons ?? 0,
+            time_saved_minutes: data.time_saved_minutes ?? 0,
+            cluster_details: data.cluster_details ?? [],
           }}));
           toast.success(`Optimized — saved ${data.saved_miles} mi (${data.saved_pct}% shorter)`);
         } else {
@@ -287,10 +293,11 @@ export function RoutesTab({ orgId }: { orgId: string }) {
               const totalSavedMiles = results.reduce((s, r) => s + r.saved_miles, 0);
               const totalOriginal = results.reduce((s, r) => s + r.original_miles, 0);
               const totalOptimized = results.reduce((s, r) => s + r.total_miles, 0);
-              const totalTimeSaved = Math.round((totalSavedMiles / 25) * 60);
-              const totalFuelSaved = Math.round((totalSavedMiles / 20) * 3.5 * 100) / 100;
-              const weeklySavings = totalFuelSaved;
-              const monthlySavings = Math.round(weeklySavings * 4.3 * 100) / 100;
+              const totalCo2Saved = Math.round(results.reduce((s, r) => s + r.co2_saved_lbs, 0) * 10) / 10;
+              const totalFuelGalSaved = Math.round(results.reduce((s, r) => s + r.fuel_saved_gallons, 0) * 100) / 100;
+              const totalTimeSavedMin = results.reduce((s, r) => s + r.time_saved_minutes, 0);
+              const totalFuelCostSaved = Math.round((totalSavedMiles / 20) * 3.5 * 100) / 100;
+              const monthlySavings = Math.round(totalFuelCostSaved * 4.3 * 100) / 100;
               if (totalSavedMiles <= 0) return null;
               return (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
@@ -303,8 +310,26 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                       <p className="text-[10px] text-emerald-600">Miles saved/week</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-lg font-bold text-emerald-800">~{totalTimeSaved} min</p>
+                      <p className="text-lg font-bold text-emerald-800">~{totalTimeSavedMin} min</p>
                       <p className="text-[10px] text-emerald-600">Drive time saved/week</p>
+                    </div>
+                  </div>
+                  {/* Environmental savings totals */}
+                  <div className="grid grid-cols-3 gap-2 mb-3 pt-2 border-t border-emerald-200">
+                    <div className="text-center">
+                      <Leaf size={11} className="inline text-[#10B981] mb-0.5" />
+                      <p className="text-sm font-bold text-emerald-800">{totalCo2Saved}</p>
+                      <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">CO2 lbs</p>
+                    </div>
+                    <div className="text-center">
+                      <Fuel size={11} className="inline text-[#10B981] mb-0.5" />
+                      <p className="text-sm font-bold text-emerald-800">{totalFuelGalSaved}</p>
+                      <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Gal saved</p>
+                    </div>
+                    <div className="text-center">
+                      <Clock size={11} className="inline text-[#10B981] mb-0.5" />
+                      <p className="text-sm font-bold text-emerald-800">{totalTimeSavedMin}</p>
+                      <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Min saved</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-emerald-700 pt-2 border-t border-emerald-200">
@@ -397,8 +422,8 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                         {/* Optimization Result */}
                         {optimizeResults[route.id] && (() => {
                           const r = optimizeResults[route.id];
-                          const timeSavedMin = Math.round((r.saved_miles / 25) * 60);
-                          const fuelSaved = Math.round((r.saved_miles / 20) * 3.5 * 100) / 100;
+                          const clusterColors = ['#0066FF', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#EC4899', '#06B6D4', '#F97316'];
+                          const zoneLabels = 'ABCDEFGHIJKLMNOP';
                           return (
                             <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                               <div className="flex items-center justify-between mb-2">
@@ -421,12 +446,41 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                                   <p className="text-sm font-bold text-emerald-800">{r.saved_pct}%</p>
                                 </div>
                               </div>
+                              {/* Environmental savings */}
+                              <div className="mt-2 pt-2 border-t border-emerald-200 grid grid-cols-3 gap-2 text-center">
+                                <div>
+                                  <Leaf size={10} className="inline text-[#10B981] mb-0.5" />
+                                  <p className="text-sm font-bold text-emerald-800">{r.co2_saved_lbs}</p>
+                                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">CO2 lbs</p>
+                                </div>
+                                <div>
+                                  <Fuel size={10} className="inline text-[#10B981] mb-0.5" />
+                                  <p className="text-sm font-bold text-emerald-800">{r.fuel_saved_gallons}</p>
+                                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Gal saved</p>
+                                </div>
+                                <div>
+                                  <Clock size={10} className="inline text-[#10B981] mb-0.5" />
+                                  <p className="text-sm font-bold text-emerald-800">{r.time_saved_minutes}</p>
+                                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Min saved</p>
+                                </div>
+                              </div>
                               <div className="mt-2 pt-2 border-t border-emerald-200 flex flex-wrap gap-3 text-[10px] text-emerald-700">
-                                {timeSavedMin > 0 && <span><Clock size={9} className="inline mr-0.5" /> ~{timeSavedMin} min saved</span>}
-                                {fuelSaved > 0 && <span><Fuel size={9} className="inline mr-0.5" /> ~${fuelSaved} fuel saved</span>}
-                                {r.clusters > 1 && <span>{r.clusters} geographic zones</span>}
                                 {r.longest_leg > 3 && <span>Longest leg: {r.longest_leg} mi</span>}
                               </div>
+                              {/* Zone clusters */}
+                              {r.cluster_details && r.cluster_details.length >= 2 && (
+                                <div className="mt-2 pt-2 border-t border-emerald-200 flex flex-wrap gap-1.5">
+                                  {r.cluster_details.map((cluster, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+                                      style={{ backgroundColor: clusterColors[idx % clusterColors.length] }}
+                                    >
+                                      Zone {zoneLabels[idx]}: {cluster.stop_count} stop{cluster.stop_count !== 1 ? 's' : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
