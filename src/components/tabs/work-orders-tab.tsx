@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { Plus, Wrench, Loader2, ChevronDown, ChevronUp, Calendar, DollarSign, AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Plus, Wrench, Loader2, ChevronDown, ChevronUp, Calendar, DollarSign, AlertTriangle, CheckCircle2, Clock, XCircle, Search, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -40,10 +40,26 @@ export function WorkOrdersTab({ orgId }: { orgId: string }) {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'date' | 'priority' | 'title'>('date');
 
-  const filtered = workOrders?.filter(wo =>
-    statusFilter === 'all' || wo.status === statusFilter
-  );
+  const PRIORITY_ORDER = { urgent: 0, high: 1, normal: 2, low: 3 };
+
+  const filtered = (workOrders ?? [])
+    .filter(wo => statusFilter === 'all' || wo.status === statusFilter)
+    .filter(wo => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return wo.title?.toLowerCase().includes(q) ||
+        wo.customers?.name?.toLowerCase().includes(q) ||
+        wo.description?.toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      if (sortBy === 'priority') return (PRIORITY_ORDER[a.priority as keyof typeof PRIORITY_ORDER] ?? 2) - (PRIORITY_ORDER[b.priority as keyof typeof PRIORITY_ORDER] ?? 2);
+      if (sortBy === 'title') return (a.title ?? '').localeCompare(b.title ?? '');
+      // date: newest first
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   const completedOrders = workOrders?.filter(wo => wo.status === 'completed') ?? [];
   const totalEstimated = completedOrders.reduce((s, wo) => s + (wo.estimated_cost_cents ?? 0), 0);
@@ -150,6 +166,28 @@ export function WorkOrdersTab({ orgId }: { orgId: string }) {
           </div>
         </div>
       )}
+
+      {/* Search & Sort */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search work orders..."
+            className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-lg text-sm text-[#1A1A2E] placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition"
+          />
+        </div>
+        <button
+          onClick={() => setSortBy(s => s === 'date' ? 'priority' : s === 'priority' ? 'title' : 'date')}
+          className="p-2 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition flex items-center gap-1"
+          title={`Sort: ${sortBy}`}
+        >
+          <ArrowUpDown size={14} className="text-[#64748B]" />
+          <span className="text-[10px] text-[#64748B] font-medium capitalize">{sortBy}</span>
+        </button>
+      </div>
 
       {/* Status Filter */}
       <div className="flex gap-2 overflow-x-auto pb-1">

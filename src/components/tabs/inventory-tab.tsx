@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { Plus, Package, Loader2, Minus, RotateCcw, Trash2, AlertTriangle, Edit2 } from 'lucide-react';
+import { Plus, Package, Loader2, Minus, RotateCcw, Trash2, AlertTriangle, Edit2, Search, ArrowUpDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 
@@ -28,10 +28,23 @@ export function InventoryTab({ orgId }: { orgId: string }) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<{ id: string; chemical_name: string; reorder_threshold: number | null } | null>(null);
   const [editThreshold, setEditThreshold] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'qty' | 'low'>('name');
 
   const lowStockItems = inventory?.filter(i => i.reorder_threshold && i.quantity_on_hand <= i.reorder_threshold) ?? [];
   const totalItems = inventory?.length ?? 0;
   const healthyPct = totalItems > 0 ? Math.round(((totalItems - lowStockItems.length) / totalItems) * 100) : 100;
+
+  const filteredInventory = (inventory ?? [])
+    .filter(i => !searchQuery || i.chemical_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.chemical_name.localeCompare(b.chemical_name);
+      if (sortBy === 'qty') return a.quantity_on_hand - b.quantity_on_hand;
+      // low stock first
+      const aLow = a.reorder_threshold && a.quantity_on_hand <= a.reorder_threshold ? 0 : 1;
+      const bLow = b.reorder_threshold && b.quantity_on_hand <= b.reorder_threshold ? 0 : 1;
+      return aLow - bLow;
+    });
 
   if (isLoading) return <ListSkeleton rows={5} />;
 
@@ -92,6 +105,28 @@ export function InventoryTab({ orgId }: { orgId: string }) {
         </div>
       )}
 
+      {/* Search & Sort */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search chemicals..."
+            className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-lg text-sm text-[#1A1A2E] placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition"
+          />
+        </div>
+        <button
+          onClick={() => setSortBy(s => s === 'name' ? 'qty' : s === 'qty' ? 'low' : 'name')}
+          className="p-2 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition flex items-center gap-1"
+          title={`Sort: ${sortBy === 'name' ? 'A-Z' : sortBy === 'qty' ? 'Quantity' : 'Low Stock'}`}
+        >
+          <ArrowUpDown size={14} className="text-[#64748B]" />
+          <span className="text-[10px] text-[#64748B] font-medium">{sortBy === 'name' ? 'A-Z' : sortBy === 'qty' ? 'Qty' : 'Low'}</span>
+        </button>
+      </div>
+
       {/* Low Stock Alert */}
       {lowStockItems.length > 0 && (
         <motion.div
@@ -120,9 +155,13 @@ export function InventoryTab({ orgId }: { orgId: string }) {
           description="Add chemicals to track your truck inventory"
           action={{ label: 'Add Chemical', onClick: () => setShowForm(true) }}
         />
+      ) : !filteredInventory.length ? (
+        <div className="text-center py-8">
+          <p className="text-sm text-[#64748B]">No chemicals match &ldquo;{searchQuery}&rdquo;</p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {inventory.map((item, i) => {
+          {filteredInventory.map((item, i) => {
             const isLow = item.reorder_threshold && item.quantity_on_hand <= item.reorder_threshold;
             return (
               <motion.div

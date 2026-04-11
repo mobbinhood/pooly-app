@@ -12,7 +12,7 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car, Gauge, BarChart3, Fuel, Leaf, CheckCircle2, Circle, Copy } from 'lucide-react';
+import { Plus, MapPin, GripVertical, Trash2, UserPlus, ChevronDown, ChevronUp, Clock, Loader2, Route, AlertTriangle, Navigation, Car, Gauge, BarChart3, Fuel, Leaf, CheckCircle2, Circle, Copy, CalendarDays } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -428,6 +428,50 @@ export function RoutesTab({ orgId }: { orgId: string }) {
           </div>
         );
       })()}
+
+      {/* Weekly Schedule Overview */}
+      {routes && routes.length >= 2 && (
+        <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#F1F5F9]">
+            <h3 className="text-sm font-semibold text-[#1A1A2E] flex items-center gap-2">
+              <CalendarDays size={14} className="text-[#0066FF]" />
+              Weekly Schedule
+            </h3>
+          </div>
+          <div className="p-3">
+            <div className="grid grid-cols-7 gap-1">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => {
+                const dayIndex = (i + 1) % 7;
+                const dayRoutes = routes.filter(r => r.day_of_week === dayIndex);
+                const stopCount = dayRoutes.reduce((s, r) => s + (r.route_stops?.length ?? 0), 0);
+                const isToday = new Date().getDay() === dayIndex;
+                return (
+                  <div key={day} className={`text-center rounded-lg p-1.5 ${isToday ? 'bg-[#0066FF]/5 ring-1 ring-[#0066FF]/20' : ''}`}>
+                    <p className={`text-[9px] font-medium ${isToday ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}>{day}</p>
+                    <p className={`text-sm font-bold mt-0.5 ${stopCount > 0 ? 'text-[#1A1A2E]' : 'text-[#CBD5E1]'}`}>{stopCount}</p>
+                    <div className="mt-1 space-y-0.5">
+                      {dayRoutes.slice(0, 2).map(r => (
+                        <p key={r.id} className="text-[7px] text-[#64748B] truncate leading-tight">{r.name}</p>
+                      ))}
+                      {dayRoutes.length > 2 && (
+                        <p className="text-[7px] text-[#94A3B8]">+{dayRoutes.length - 2}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#F1F5F9]">
+              <span className="text-[10px] text-[#94A3B8]">
+                {routes.reduce((s, r) => s + (r.route_stops?.length ?? 0), 0)} stops/week
+              </span>
+              <span className="text-[10px] text-[#94A3B8]">
+                {new Set(routes.map(r => r.day_of_week)).size} active days
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!routes?.length ? (
         <EmptyState

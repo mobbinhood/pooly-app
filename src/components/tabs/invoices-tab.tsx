@@ -29,6 +29,9 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
+  Search,
+  Download,
+  ArrowUpDown,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Database } from '@/lib/supabase';
@@ -68,10 +71,45 @@ export function InvoicesTab({ orgId }: { orgId: string }) {
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithRelations | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InvoiceWithRelations | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'amount'>('newest');
 
-  const filtered = invoices?.filter(inv =>
-    statusFilter === 'all' || inv.status === statusFilter
-  ) ?? [];
+  const filtered = (invoices ?? [])
+    .filter(inv => statusFilter === 'all' || inv.status === statusFilter)
+    .filter(inv => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return inv.customers?.name?.toLowerCase().includes(q) ||
+        inv.invoice_number?.toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      if (sortOrder === 'newest') return new Date(b.issued_date).getTime() - new Date(a.issued_date).getTime();
+      if (sortOrder === 'oldest') return new Date(a.issued_date).getTime() - new Date(b.issued_date).getTime();
+      return b.total_cents - a.total_cents;
+    });
+
+  const exportCsv = () => {
+    if (!filtered.length) return;
+    const rows = [['Invoice #', 'Customer', 'Status', 'Issued', 'Due', 'Amount']];
+    filtered.forEach(inv => {
+      rows.push([
+        inv.invoice_number,
+        inv.customers?.name ?? '',
+        inv.status,
+        inv.issued_date,
+        inv.due_date,
+        (inv.total_cents / 100).toFixed(2),
+      ]);
+    });
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoices-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const now = new Date();
   const stats = {
@@ -222,6 +260,34 @@ export function InvoicesTab({ orgId }: { orgId: string }) {
           </div>
         </div>
       )}
+
+      {/* Search & Actions */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search invoices..."
+            className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-lg text-sm text-[#1A1A2E] placeholder-[#94A3B8] focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition"
+          />
+        </div>
+        <button
+          onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : s === 'oldest' ? 'amount' : 'newest')}
+          className="p-2 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition"
+          title={`Sort: ${sortOrder}`}
+        >
+          <ArrowUpDown size={14} className="text-[#64748B]" />
+        </button>
+        <button
+          onClick={exportCsv}
+          className="p-2 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition"
+          title="Export CSV"
+        >
+          <Download size={14} className="text-[#64748B]" />
+        </button>
+      </div>
 
       {/* Filters */}
       <div className="flex gap-2 overflow-x-auto pb-1">

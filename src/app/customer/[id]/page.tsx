@@ -37,6 +37,9 @@ import {
   BarChart3,
   Timer,
   Activity,
+  Shield,
+  Lightbulb,
+  Heart,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -161,6 +164,112 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       new Date(b.paid_at ?? b.created_at).getTime() - new Date(a.paid_at ?? a.created_at).getTime()
     )[0];
     return { totalBilled, totalPaid, avgInvoice, invoiceCount: allInv.length, paidCount: paid.length, lastPayment };
+  })();
+
+  // Pool health score (0-100) based on most recent readings
+  const poolHealth = (() => {
+    if (!recentLogs.length) return null;
+    const latest = recentLogs[0];
+    let score = 100;
+    const issues: string[] = [];
+    const tips: { text: string; severity: 'good' | 'warn' | 'bad' }[] = [];
+
+    // pH: ideal 7.2-7.8
+    if (latest.ph_level != null) {
+      if (latest.ph_level < 7.0 || latest.ph_level > 8.0) {
+        score -= 25;
+        issues.push('pH out of range');
+        tips.push({
+          text: latest.ph_level < 7.0
+            ? `pH is low (${latest.ph_level}). Add sodium carbonate (soda ash) to raise pH.`
+            : `pH is high (${latest.ph_level}). Add muriatic acid to lower pH.`,
+          severity: 'bad',
+        });
+      } else if (latest.ph_level < 7.2 || latest.ph_level > 7.8) {
+        score -= 10;
+        tips.push({
+          text: latest.ph_level < 7.2
+            ? `pH slightly low (${latest.ph_level}). Consider adding soda ash.`
+            : `pH slightly high (${latest.ph_level}). Consider adding muriatic acid.`,
+          severity: 'warn',
+        });
+      } else {
+        tips.push({ text: `pH is ideal (${latest.ph_level})`, severity: 'good' });
+      }
+    }
+    // Chlorine: ideal 1.0-3.0 ppm
+    if (latest.chlorine_level != null) {
+      if (latest.chlorine_level < 0.5 || latest.chlorine_level > 5.0) {
+        score -= 25;
+        issues.push('Chlorine critical');
+        tips.push({
+          text: latest.chlorine_level < 0.5
+            ? `Chlorine very low (${latest.chlorine_level}). Shock the pool immediately.`
+            : `Chlorine very high (${latest.chlorine_level}). Allow to dissipate naturally.`,
+          severity: 'bad',
+        });
+      } else if (latest.chlorine_level < 1.0 || latest.chlorine_level > 3.0) {
+        score -= 10;
+        tips.push({
+          text: latest.chlorine_level < 1.0
+            ? `Chlorine low (${latest.chlorine_level}). Add chlorine tablets.`
+            : `Chlorine slightly high (${latest.chlorine_level}). Monitor levels.`,
+          severity: 'warn',
+        });
+      } else {
+        tips.push({ text: `Chlorine is ideal (${latest.chlorine_level})`, severity: 'good' });
+      }
+    }
+    // Alkalinity: ideal 80-120 ppm
+    if (latest.alkalinity != null) {
+      if (latest.alkalinity < 60 || latest.alkalinity > 140) {
+        score -= 20;
+        issues.push('Alkalinity off');
+        tips.push({
+          text: latest.alkalinity < 60
+            ? `Alkalinity low (${latest.alkalinity}). Add sodium bicarbonate.`
+            : `Alkalinity high (${latest.alkalinity}). Add muriatic acid.`,
+          severity: 'bad',
+        });
+      } else if (latest.alkalinity < 80 || latest.alkalinity > 120) {
+        score -= 8;
+        tips.push({
+          text: latest.alkalinity < 80
+            ? `Alkalinity slightly low (${latest.alkalinity}). Add baking soda.`
+            : `Alkalinity slightly high (${latest.alkalinity}). Monitor and adjust.`,
+          severity: 'warn',
+        });
+      }
+    }
+    // CYA: ideal 30-50
+    if (latest.cya != null) {
+      if (latest.cya > 80) {
+        score -= 15;
+        tips.push({ text: `CYA too high (${latest.cya}). Dilute with fresh water.`, severity: 'bad' });
+      } else if (latest.cya < 30) {
+        score -= 5;
+        tips.push({ text: `CYA low (${latest.cya}). Add stabilizer.`, severity: 'warn' });
+      }
+    }
+    // Service recency penalty
+    if (serviceStats && serviceStats.avgGapDays > 14) {
+      score -= 10;
+      issues.push('Infrequent service');
+    }
+
+    return { score: Math.max(0, score), issues, tips };
+  })();
+
+  // Customer lifetime value
+  const lifetimeValue = (() => {
+    const allInv = invoices ?? [];
+    if (allInv.length === 0) return null;
+    const totalPaid = allInv.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_cents, 0);
+    const monthsSinceFirst = Math.max(1, Math.round(
+      (Date.now() - new Date(customer?.created_at ?? Date.now()).getTime()) / (1000 * 60 * 60 * 24 * 30)
+    ));
+    const monthlyAvg = totalPaid / monthsSinceFirst;
+    return { totalPaid, monthlyAvg, months: monthsSinceFirst };
   })();
 
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null);
@@ -338,6 +447,97 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               )}
             </section>
+          )}
+
+          {/* Pool Health Score */}
+          {poolHealth && (
+            <section className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#F1F5F9]">
+                <h2 className="text-sm font-semibold text-[#1A1A2E] flex items-center gap-2">
+                  <Shield size={14} className={poolHealth.score >= 80 ? 'text-[#10B981]' : poolHealth.score >= 50 ? 'text-[#F59E0B]' : 'text-[#EF4444]'} />
+                  Pool Health Score
+                </h2>
+              </div>
+              <div className="p-4">
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="relative w-16 h-16">
+                    <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                      <path
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none"
+                        stroke="#F1F5F9"
+                        strokeWidth="3"
+                      />
+                      <path
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none"
+                        stroke={poolHealth.score >= 80 ? '#10B981' : poolHealth.score >= 50 ? '#F59E0B' : '#EF4444'}
+                        strokeWidth="3"
+                        strokeDasharray={`${poolHealth.score}, 100`}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <span className={`absolute inset-0 flex items-center justify-center text-lg font-bold ${
+                      poolHealth.score >= 80 ? 'text-[#10B981]' : poolHealth.score >= 50 ? 'text-[#F59E0B]' : 'text-[#EF4444]'
+                    }`}>
+                      {poolHealth.score}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <p className={`text-sm font-semibold ${
+                      poolHealth.score >= 80 ? 'text-[#10B981]' : poolHealth.score >= 50 ? 'text-[#F59E0B]' : 'text-[#EF4444]'
+                    }`}>
+                      {poolHealth.score >= 80 ? 'Excellent' : poolHealth.score >= 60 ? 'Good' : poolHealth.score >= 40 ? 'Needs Attention' : 'Critical'}
+                    </p>
+                    {poolHealth.issues.length > 0 && (
+                      <p className="text-xs text-[#64748B] mt-0.5">
+                        {poolHealth.issues.join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dosing Recommendations */}
+                {poolHealth.tips.filter(t => t.severity !== 'good').length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-[#F1F5F9]">
+                    <p className="text-[10px] text-[#94A3B8] font-medium uppercase flex items-center gap-1">
+                      <Lightbulb size={10} /> Recommendations
+                    </p>
+                    {poolHealth.tips.filter(t => t.severity !== 'good').map((tip, i) => (
+                      <div key={i} className={`text-xs px-3 py-2 rounded-lg ${
+                        tip.severity === 'bad' ? 'bg-[#EF4444]/5 text-[#EF4444]' : 'bg-[#F59E0B]/5 text-[#F59E0B]'
+                      }`}>
+                        {tip.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Customer Lifetime Value */}
+          {lifetimeValue && (
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Heart size={14} className="text-[#0066FF]" />
+                <p className="text-[10px] text-[#94A3B8] font-medium uppercase">Customer Value</p>
+              </div>
+              <div className="flex gap-4">
+                <div>
+                  <p className="text-lg font-bold text-[#1A1A2E]">${(lifetimeValue.totalPaid / 100).toLocaleString()}</p>
+                  <p className="text-[10px] text-[#64748B]">Lifetime</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-[#0066FF]">${(lifetimeValue.monthlyAvg / 100).toFixed(0)}</p>
+                  <p className="text-[10px] text-[#64748B]">Monthly Avg</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-[#64748B]">{lifetimeValue.months}</p>
+                  <p className="text-[10px] text-[#64748B]">Months</p>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Service Stats */}
