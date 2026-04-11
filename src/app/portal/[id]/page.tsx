@@ -1,8 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, ArrowRight, Waves, Thermometer, Shield, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, Waves, Thermometer, Shield, BarChart3, Phone, Mail, User } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
+import { CollapsibleSection, ServiceRequestForm } from './portal-client';
 
 async function getSupabase() {
   const cookieStore = await cookies();
@@ -60,7 +61,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
       .limit(30),
     supabase
       .from('route_stops')
-      .select('id, stop_order, estimated_duration_minutes, routes:route_id(name, day_of_week, users:technician_id(name))')
+      .select('id, stop_order, estimated_duration_minutes, routes:route_id(name, day_of_week, users:technician_id(name, email, phone))')
       .eq('customer_id', id),
     supabase
       .from('invoices')
@@ -91,7 +92,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
     const today = new Date();
     const todayDay = today.getDay();
     for (const stop of routeStops) {
-      const route = stop.routes as unknown as { name: string; day_of_week: number; users: { name: string } | null } | null;
+      const route = stop.routes as unknown as { name: string; day_of_week: number; users: { name: string; email?: string; phone?: string } | null } | null;
       if (!route) continue;
       let daysUntil = route.day_of_week - todayDay;
       if (daysUntil <= 0) daysUntil += 7;
@@ -107,6 +108,16 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
   const overdueCents = invoices?.filter(i => i.status === 'overdue').reduce((s, i) => s + i.total_cents, 0) ?? 0;
   const paidCents = invoices?.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_cents, 0) ?? 0;
   const lastServiceDate = serviceLogs?.[0]?.service_date;
+
+  // Get assigned technician info
+  const assignedTech = (() => {
+    if (!routeStops?.length) return null;
+    for (const stop of routeStops) {
+      const route = stop.routes as unknown as { name: string; day_of_week: number; users: { name: string; email?: string; phone?: string } | null } | null;
+      if (route?.users) return route.users;
+    }
+    return null;
+  })();
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
@@ -190,6 +201,36 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             )}
           </div>
 
+          {/* Service Request */}
+          <ServiceRequestForm customerId={customer.id} />
+
+          {/* Your Technician */}
+          {assignedTech && (
+            <div className="bg-white rounded-xl border border-[#E2E8F0] px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#0066FF]/8 rounded-full flex items-center justify-center shrink-0">
+                  <User size={18} className="text-[#0066FF]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[#1A1A2E]">{assignedTech.name}</p>
+                  <p className="text-xs text-[#64748B]">Your assigned technician</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {assignedTech.phone && (
+                    <a href={`tel:${assignedTech.phone}`} className="w-8 h-8 rounded-lg bg-[#10B981]/8 flex items-center justify-center">
+                      <Phone size={14} className="text-[#10B981]" />
+                    </a>
+                  )}
+                  {assignedTech.email && (
+                    <a href={`mailto:${assignedTech.email}`} className="w-8 h-8 rounded-lg bg-[#0066FF]/8 flex items-center justify-center">
+                      <Mail size={14} className="text-[#0066FF]" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Water Quality Summary */}
           {serviceLogs && serviceLogs.length > 0 && (() => {
             const latest = serviceLogs[0];
@@ -202,14 +243,15 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             const allGood = readings.every(r => r.ok);
 
             return (
-              <section>
-                <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
-                  <Droplets size={16} className="text-[#0066FF]" />
-                  Water Quality
+              <CollapsibleSection
+                title="Water Quality"
+                icon={<Droplets size={16} className="text-[#0066FF]" />}
+                badge={
                   <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full ${allGood ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                     {allGood ? 'All Good' : 'Needs Attention'}
                   </span>
-                </h3>
+                }
+              >
                 <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
                   <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-[#F1F5F9]">
                     {readings.map((r) => (
@@ -230,7 +272,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                     </div>
                   )}
                 </div>
-              </section>
+              </CollapsibleSection>
             );
           })()}
 
@@ -247,12 +289,12 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             if (metrics.length === 0) return null;
 
             return (
-              <section>
-                <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
-                  <BarChart3 size={16} className="text-[#0066FF]" />
-                  Water Quality Trends
-                  <span className="ml-auto text-[10px] text-[#94A3B8]">Last {trendLogs.length} readings</span>
-                </h3>
+              <CollapsibleSection
+                title="Water Quality Trends"
+                icon={<BarChart3 size={16} className="text-[#0066FF]" />}
+                badge={<span className="ml-auto text-[10px] text-[#94A3B8]">Last {trendLogs.length} readings</span>}
+                defaultOpen={false}
+              >
                 <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden divide-y divide-[#F1F5F9]">
                   {metrics.map((metric) => {
                     const points = trendLogs
@@ -309,17 +351,17 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                     );
                   })}
                 </div>
-              </section>
+              </CollapsibleSection>
             );
           })()}
 
           {/* Pool Details */}
           {pools && pools.length > 0 && (
-            <section>
-              <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
-                <Waves size={16} className="text-[#0066FF]" />
-                Pool Details
-              </h3>
+            <CollapsibleSection
+              title="Pool Details"
+              icon={<Waves size={16} className="text-[#0066FF]" />}
+              defaultOpen={false}
+            >
               <div className="space-y-2">
                 {pools.map((pool) => {
                   const equipment = [
@@ -357,15 +399,14 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                   );
                 })}
               </div>
-            </section>
+            </CollapsibleSection>
           )}
 
           {/* Upcoming Services */}
-          <section>
-            <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
-              <Calendar size={16} className="text-[#0066FF]" />
-              Scheduled Services
-            </h3>
+          <CollapsibleSection
+            title="Scheduled Services"
+            icon={<Calendar size={16} className="text-[#0066FF]" />}
+          >
             {!routeStops?.length ? (
               <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 text-center">
                 <p className="text-sm text-[#94A3B8]">No scheduled services at this time</p>
@@ -373,7 +414,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             ) : (
               <div className="space-y-2">
                 {routeStops.map((stop) => {
-                  const route = stop.routes as unknown as { name: string; day_of_week: number; users: { name: string } | null } | null;
+                  const route = stop.routes as unknown as { name: string; day_of_week: number; users: { name: string; email?: string; phone?: string } | null } | null;
                   return (
                     <div key={stop.id} className="bg-white rounded-xl border border-[#E2E8F0] px-4 py-3 flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold bg-[#0066FF]/8 text-[#0066FF]">
@@ -393,15 +434,14 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                 })}
               </div>
             )}
-          </section>
+          </CollapsibleSection>
 
           {/* Active Work Orders */}
           {workOrders && workOrders.length > 0 && (
-            <section>
-              <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
-                <Wrench size={16} className="text-[#F59E0B]" />
-                Active Work Orders
-              </h3>
+            <CollapsibleSection
+              title="Active Work Orders"
+              icon={<Wrench size={16} className="text-[#F59E0B]" />}
+            >
               <div className="space-y-2">
                 {workOrders.map((wo) => {
                   const priorityColors: Record<string, string> = {
@@ -442,15 +482,14 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                   );
                 })}
               </div>
-            </section>
+            </CollapsibleSection>
           )}
 
           {/* Billing & Invoices */}
-          <section>
-            <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
-              <DollarSign size={16} className="text-[#0066FF]" />
-              Billing & Invoices
-            </h3>
+          <CollapsibleSection
+            title="Billing & Invoices"
+            icon={<DollarSign size={16} className="text-[#0066FF]" />}
+          >
             {!invoices?.length ? (
               <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 text-center">
                 <p className="text-sm text-[#94A3B8]">No invoices at this time</p>
@@ -565,17 +604,17 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                 </div>
               </>
             )}
-          </section>
+          </CollapsibleSection>
 
           {/* Service History */}
-          <section>
-            <h3 className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2">
-              <Clock size={16} className="text-[#0066FF]" />
-              Service History
-              {serviceLogs && serviceLogs.length > 0 && (
-                <span className="ml-auto text-[10px] text-[#94A3B8]">{serviceLogs.length} visits</span>
-              )}
-            </h3>
+          <CollapsibleSection
+            title="Service History"
+            icon={<Clock size={16} className="text-[#0066FF]" />}
+            badge={serviceLogs && serviceLogs.length > 0 ? (
+              <span className="ml-auto text-[10px] text-[#94A3B8]">{serviceLogs.length} visits</span>
+            ) : undefined}
+            defaultOpen={false}
+          >
             {/* Service Stats */}
             {serviceLogs && serviceLogs.length >= 2 && (() => {
               const avgTimeOnSite = serviceLogs
@@ -705,7 +744,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
                 )}
               </div>
             )}
-          </section>
+          </CollapsibleSection>
         </main>
 
         {/* Service Status Banner */}

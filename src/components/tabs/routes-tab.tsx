@@ -102,6 +102,10 @@ export function RoutesTab({ orgId }: { orgId: string }) {
   const [addStopRoute, setAddStopRoute] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [optimizing, setOptimizing] = useState<string | null>(null);
+  const [optimizeResults, setOptimizeResults] = useState<Record<string, {
+    original_miles: number; total_miles: number; saved_miles: number; saved_pct: number;
+    clusters: number; longest_leg: number; geocoded: number;
+  }>>({});
   const queryClient = useQueryClient();
 
   const handleOptimizeRoute = async (routeId: string) => {
@@ -114,14 +118,21 @@ export function RoutesTab({ orgId }: { orgId: string }) {
       });
       const data = await res.json();
       if (res.ok) {
-        const pctSaved = data.saved_miles > 0 && data.total_miles > 0
-          ? Math.round((data.saved_miles / (data.total_miles + data.saved_miles)) * 100)
-          : 0;
-        let msg = data.saved_miles > 0
-          ? `Optimized — saved ${data.saved_miles} mi (${pctSaved}% shorter, ${data.total_miles} mi total)`
-          : data.message || 'Route already optimal';
-        if (data.geocoded > 0) msg += ` · ${data.geocoded} address${data.geocoded > 1 ? 'es' : ''} geocoded`;
-        toast.success(msg);
+        if (data.saved_miles > 0) {
+          setOptimizeResults(prev => ({ ...prev, [routeId]: {
+            original_miles: data.original_miles,
+            total_miles: data.total_miles,
+            saved_miles: data.saved_miles,
+            saved_pct: data.saved_pct,
+            clusters: data.clusters,
+            longest_leg: data.longest_leg,
+            geocoded: data.geocoded,
+          }}));
+          toast.success(`Optimized — saved ${data.saved_miles} mi (${data.saved_pct}% shorter)`);
+        } else {
+          toast.success(data.message || 'Route already optimal');
+        }
+        if (data.geocoded > 0) toast.success(`${data.geocoded} address${data.geocoded > 1 ? 'es' : ''} geocoded`);
         await queryClient.invalidateQueries({ queryKey: ['routes'] });
       } else {
         toast.error(data.error || 'Failed to optimize');
@@ -350,6 +361,40 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                       className="overflow-hidden"
                     >
                       <div className="border-t border-[#F1F5F9] px-4 py-3">
+                        {/* Optimization Result */}
+                        {optimizeResults[route.id] && (() => {
+                          const r = optimizeResults[route.id];
+                          return (
+                            <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1">
+                                  <Route size={12} /> Optimization Results
+                                </p>
+                                <button onClick={() => setOptimizeResults(prev => { const n = { ...prev }; delete n[route.id]; return n; })} className="text-[10px] text-emerald-600 hover:text-emerald-800">Dismiss</button>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-center">
+                                <div>
+                                  <p className="text-[10px] text-emerald-600 uppercase">Before</p>
+                                  <p className="text-sm font-bold text-emerald-800 line-through opacity-60">{r.original_miles} mi</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-emerald-600 uppercase">After</p>
+                                  <p className="text-sm font-bold text-emerald-800">{r.total_miles} mi</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-emerald-600 uppercase">Saved</p>
+                                  <p className="text-sm font-bold text-emerald-800">{r.saved_pct}%</p>
+                                </div>
+                              </div>
+                              {(r.clusters > 1 || r.longest_leg > 3) && (
+                                <div className="mt-2 pt-2 border-t border-emerald-200 flex gap-3 text-[10px] text-emerald-700">
+                                  {r.clusters > 1 && <span>{r.clusters} geographic zones detected</span>}
+                                  {r.longest_leg > 3 && <span>Longest leg: {r.longest_leg} mi</span>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {ungeocodedCount > 0 && (
                           <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-amber-50 border border-amber-200 rounded-lg">
                             <AlertTriangle size={13} className="text-amber-500 shrink-0" />

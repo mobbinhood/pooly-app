@@ -257,12 +257,41 @@ export async function POST(request: Request) {
     });
   }
 
+  // Detect clusters (geographic groupings) for insight
+  const clusters = detectClusters(optimized, 2.0); // 2 mile cluster radius
+
   return NextResponse.json({
     message: `Route optimized — saved ${savedMiles.toFixed(1)} miles`,
     stops: optimized.length,
     total_miles: Math.round(optimizedDist * 10) / 10,
+    original_miles: Math.round(originalDist * 10) / 10,
     saved_miles: Math.round(savedMiles * 10) / 10,
+    saved_pct: originalDist > 0 ? Math.round((savedMiles / originalDist) * 100) : 0,
     geocoded: geocodedCount,
     legs,
+    clusters: clusters.length,
+    longest_leg: legs.length > 0 ? Math.max(...legs.map(l => l.miles)) : 0,
   });
+}
+
+// Simple cluster detection: group stops within radius of each other
+function detectClusters(stops: Stop[], radiusMiles: number): Stop[][] {
+  if (stops.length < 2) return [stops];
+  const visited = new Set<number>();
+  const clusters: Stop[][] = [];
+
+  for (let i = 0; i < stops.length; i++) {
+    if (visited.has(i)) continue;
+    const cluster: Stop[] = [stops[i]];
+    visited.add(i);
+    for (let j = i + 1; j < stops.length; j++) {
+      if (visited.has(j)) continue;
+      if (haversine(stops[i].lat, stops[i].lng, stops[j].lat, stops[j].lng) <= radiusMiles) {
+        cluster.push(stops[j]);
+        visited.add(j);
+      }
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
 }
