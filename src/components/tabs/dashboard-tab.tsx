@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useDashboardStats, useServiceLogs, useUser, useCompletedStops, useToggleStopComplete, useRevenueData } from '@/lib/hooks';
+import { useDashboardStats, useServiceLogs, useUser, useCompletedStops, useToggleStopComplete, useRevenueData, useInvoices, useChemicalInventory, useWorkOrders } from '@/lib/hooks';
 import { StatCard } from '@/components/ui/stat-card';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { ServiceLogModal } from './service-log-modal';
@@ -21,6 +21,15 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
   const { data: completedStops } = useCompletedStops();
   const toggleComplete = useToggleStopComplete();
   const { data: revenue } = useRevenueData(orgId);
+  const { data: invoicesData } = useInvoices(orgId);
+  const { data: inventoryData } = useChemicalInventory(orgId);
+  const { data: workOrdersData } = useWorkOrders(orgId);
+
+  const overdueInvoices = invoicesData?.filter(i => i.status === 'overdue').length ?? 0;
+  const unpaidTotal = invoicesData?.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.total_cents, 0) ?? 0;
+  const lowStockCount = inventoryData?.filter(i => i.reorder_threshold && i.quantity_on_hand <= i.reorder_threshold).length ?? 0;
+  const openWorkOrders = workOrdersData?.filter(wo => wo.status === 'open').length ?? 0;
+  const urgentWorkOrders = workOrdersData?.filter(wo => wo.priority === 'urgent' && wo.status !== 'completed' && wo.status !== 'cancelled').length ?? 0;
 
   const today = new Date();
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -174,30 +183,42 @@ export function DashboardTab({ orgId, onNavigate }: { orgId: string; onNavigate?
         </button>
         <button
           onClick={() => onNavigate?.('invoices')}
-          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition relative"
         >
-          <div className="w-10 h-10 bg-[#0066FF]/8 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-[#0066FF]/8 rounded-lg flex items-center justify-center relative">
             <FileText size={18} className="text-[#0066FF]" />
+            {overdueInvoices > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-[#EF4444] text-white text-[9px] font-bold rounded-full flex items-center justify-center">{overdueInvoices}</span>
+            )}
           </div>
           <span className="text-xs font-medium text-[#1A1A2E]">Invoices</span>
+          {unpaidTotal > 0 && <span className="text-[10px] text-[#64748B]">${(unpaidTotal / 100).toLocaleString()} due</span>}
         </button>
         <button
           onClick={() => onNavigate?.('work-orders')}
-          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition relative"
         >
-          <div className="w-10 h-10 bg-[#F59E0B]/8 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-[#F59E0B]/8 rounded-lg flex items-center justify-center relative">
             <Wrench size={18} className="text-[#F59E0B]" />
+            {urgentWorkOrders > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-[#EF4444] text-white text-[9px] font-bold rounded-full flex items-center justify-center">{urgentWorkOrders}</span>
+            )}
           </div>
           <span className="text-xs font-medium text-[#1A1A2E]">Work Orders</span>
+          {openWorkOrders > 0 && <span className="text-[10px] text-[#64748B]">{openWorkOrders} open</span>}
         </button>
         <button
           onClick={() => onNavigate?.('inventory')}
-          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition"
+          className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#0066FF]/30 transition relative"
         >
-          <div className="w-10 h-10 bg-[#8B5CF6]/8 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-[#8B5CF6]/8 rounded-lg flex items-center justify-center relative">
             <Package size={18} className="text-[#8B5CF6]" />
+            {lowStockCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-[#F59E0B] text-white text-[9px] font-bold rounded-full flex items-center justify-center">{lowStockCount}</span>
+            )}
           </div>
           <span className="text-xs font-medium text-[#1A1A2E]">Inventory</span>
+          {lowStockCount > 0 && <span className="text-[10px] text-[#F59E0B]">{lowStockCount} low stock</span>}
         </button>
         <button
           onClick={() => setShowCalculator(true)}

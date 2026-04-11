@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useInvoices, useChemicalInventory, useWorkOrders } from '@/lib/hooks';
 import { Home, Users, MapPin, Settings, Tag, LogOut, Droplets, FileText, Package, Wrench, MoreHorizontal, X, Send, CalendarDays, FileDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -83,12 +84,21 @@ export default function AppPage() {
     );
   }
 
+  // Badge counts for nav
+  const { data: invoicesData } = useInvoices(orgId ?? undefined);
+  const { data: inventoryData } = useChemicalInventory(orgId ?? undefined);
+  const { data: workOrdersData } = useWorkOrders(orgId ?? undefined);
+
+  const overdueInvoices = invoicesData?.filter(i => i.status === 'overdue').length ?? 0;
+  const lowStockItems = inventoryData?.filter(i => i.reorder_threshold && i.quantity_on_hand <= i.reorder_threshold).length ?? 0;
+  const urgentWorkOrders = workOrdersData?.filter(wo => wo.status === 'open' || wo.status === 'in_progress').length ?? 0;
+
   const bottomTabs = [
-    { id: 'home' as Tab, icon: Home, label: 'Home' },
-    { id: 'customers' as Tab, icon: Users, label: 'Customers' },
-    { id: 'routes' as Tab, icon: MapPin, label: 'Routes' },
-    { id: 'invoices' as Tab, icon: FileText, label: 'Invoices' },
-    { id: 'work-orders' as Tab, icon: Wrench, label: 'Work Orders' },
+    { id: 'home' as Tab, icon: Home, label: 'Home', badge: 0 },
+    { id: 'customers' as Tab, icon: Users, label: 'Customers', badge: 0 },
+    { id: 'routes' as Tab, icon: MapPin, label: 'Routes', badge: 0 },
+    { id: 'invoices' as Tab, icon: FileText, label: 'Invoices', badge: overdueInvoices },
+    { id: 'work-orders' as Tab, icon: Wrench, label: 'Work Orders', badge: urgentWorkOrders },
   ];
 
   const moreMenuTabs = [
@@ -234,10 +244,17 @@ export default function AppPage() {
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   />
                 )}
-                <tab.icon
-                  size={20}
-                  className={`relative z-10 transition-colors ${isActive ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}
-                />
+                <div className="relative">
+                  <tab.icon
+                    size={20}
+                    className={`relative z-10 transition-colors ${isActive ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}
+                  />
+                  {tab.badge > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 bg-[#EF4444] text-white text-[9px] font-bold rounded-full flex items-center justify-center z-20">
+                      {tab.badge > 99 ? '99+' : tab.badge}
+                    </span>
+                  )}
+                </div>
                 <span className={`relative z-10 text-[10px] mt-0.5 font-medium transition-colors ${isActive ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}>
                   {tab.label}
                 </span>
@@ -256,10 +273,17 @@ export default function AppPage() {
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               />
             )}
-            <MoreHorizontal
-              size={20}
-              className={`relative z-10 transition-colors ${isMoreTab || showMore ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}
-            />
+            <div className="relative">
+              <MoreHorizontal
+                size={20}
+                className={`relative z-10 transition-colors ${isMoreTab || showMore ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}
+              />
+              {lowStockItems > 0 && !isMoreTab && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 bg-[#F59E0B] text-white text-[9px] font-bold rounded-full flex items-center justify-center z-20">
+                  {lowStockItems}
+                </span>
+              )}
+            </div>
             <span className={`relative z-10 text-[10px] mt-0.5 font-medium transition-colors ${isMoreTab || showMore ? 'text-[#0066FF]' : 'text-[#94A3B8]'}`}>
               More
             </span>
