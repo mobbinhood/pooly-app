@@ -82,6 +82,9 @@ export function InvoicesTab({ orgId }: { orgId: string }) {
     draft: invoices?.filter(i => i.status === 'draft').length ?? 0,
   };
 
+  const totalBilled = stats.paid + stats.unpaid;
+  const collectionRate = totalBilled > 0 ? Math.round((stats.paid / totalBilled) * 100) : 100;
+
   // Aging breakdown for outstanding invoices
   const outstanding = invoices?.filter(i => i.status === 'sent' || i.status === 'overdue') ?? [];
   const aging = {
@@ -160,6 +163,28 @@ export function InvoicesTab({ orgId }: { orgId: string }) {
           <p className="text-lg font-bold text-[#EF4444] mt-0.5">{stats.overdue}</p>
         </div>
       </div>
+
+      {/* Collection Rate */}
+      {totalBilled > 0 && (
+        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Collection Rate</p>
+            <span className={`text-sm font-bold ${collectionRate >= 80 ? 'text-[#10B981]' : collectionRate >= 50 ? 'text-[#F59E0B]' : 'text-[#EF4444]'}`}>
+              {collectionRate}%
+            </span>
+          </div>
+          <div className="w-full h-2 bg-[#F1F5F9] rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80 ? 'bg-[#10B981]' : collectionRate >= 50 ? 'bg-[#F59E0B]' : 'bg-[#EF4444]'}`}
+              style={{ width: `${collectionRate}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-1.5">
+            <span className="text-[10px] text-[#94A3B8]">{formatCents(stats.paid)} collected</span>
+            <span className="text-[10px] text-[#94A3B8]">{formatCents(totalBilled)} billed</span>
+          </div>
+        </div>
+      )}
 
       {/* Aging Breakdown */}
       {(aging.over30 > 0 || aging.over60 > 0 || aging.over90 > 0) && (

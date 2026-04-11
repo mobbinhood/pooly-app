@@ -26,8 +26,12 @@ export function InventoryTab({ orgId }: { orgId: string }) {
   const [restockTarget, setRestockTarget] = useState<{ id: string; name: string; qty: number } | null>(null);
   const [restockAmount, setRestockAmount] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<{ id: string; chemical_name: string; reorder_threshold: number | null } | null>(null);
+  const [editThreshold, setEditThreshold] = useState('');
 
   const lowStockItems = inventory?.filter(i => i.reorder_threshold && i.quantity_on_hand <= i.reorder_threshold) ?? [];
+  const totalItems = inventory?.length ?? 0;
+  const healthyPct = totalItems > 0 ? Math.round(((totalItems - lowStockItems.length) / totalItems) * 100) : 100;
 
   if (isLoading) return <ListSkeleton rows={5} />;
 
@@ -80,9 +84,9 @@ export function InventoryTab({ orgId }: { orgId: string }) {
             </p>
           </div>
           <div className="bg-white rounded-xl p-3 border border-[#E2E8F0]">
-            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">In Stock</p>
-            <p className="text-lg font-bold text-[#10B981] mt-0.5">
-              {(inventory?.length ?? 0) - lowStockItems.length}
+            <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider">Stock Health</p>
+            <p className={`text-lg font-bold mt-0.5 ${healthyPct >= 80 ? 'text-[#10B981]' : healthyPct >= 50 ? 'text-[#F59E0B]' : 'text-[#EF4444]'}`}>
+              {healthyPct}%
             </p>
           </div>
         </div>
@@ -145,6 +149,16 @@ export function InventoryTab({ orgId }: { orgId: string }) {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        setEditTarget({ id: item.id, chemical_name: item.chemical_name, reorder_threshold: item.reorder_threshold });
+                        setEditThreshold(item.reorder_threshold?.toString() ?? '');
+                      }}
+                      className="p-1.5 hover:bg-[#0066FF]/5 rounded-lg text-[#94A3B8] hover:text-[#0066FF] transition"
+                      title="Edit threshold"
+                    >
+                      <Edit2 size={14} />
+                    </button>
                     <button
                       onClick={() => setDeductTarget({ id: item.id, name: item.chemical_name, qty: item.quantity_on_hand })}
                       className="p-1.5 hover:bg-[#F59E0B]/5 rounded-lg text-[#94A3B8] hover:text-[#F59E0B] transition"
@@ -223,6 +237,36 @@ export function InventoryTab({ orgId }: { orgId: string }) {
             className="w-full py-2.5 bg-[#10B981] text-white rounded-lg font-medium text-sm hover:bg-emerald-600 transition"
           >
             Restock
+          </button>
+        </div>
+      </Modal>
+
+      {/* Edit Threshold Modal */}
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title={`Edit ${editTarget?.chemical_name ?? ''}`} size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">Reorder Threshold</label>
+            <input
+              type="number"
+              step="0.1"
+              value={editThreshold}
+              onChange={(e) => setEditThreshold(e.target.value)}
+              placeholder="Alert when below..."
+              className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-[#1A1A2E] text-sm focus:ring-2 focus:ring-[#0066FF] focus:border-transparent transition"
+            />
+          </div>
+          <button
+            onClick={() => {
+              if (!editTarget) return;
+              const val = editThreshold ? parseFloat(editThreshold) : null;
+              updateItem.mutate({ id: editTarget.id, reorder_threshold: val });
+              setEditTarget(null);
+              setEditThreshold('');
+              toast.success('Threshold updated');
+            }}
+            className="w-full py-2.5 bg-[#0066FF] text-white rounded-lg font-medium text-sm hover:bg-[#0052CC] transition"
+          >
+            Save
           </button>
         </div>
       </Modal>

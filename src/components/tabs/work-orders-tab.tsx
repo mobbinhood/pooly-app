@@ -45,6 +45,14 @@ export function WorkOrdersTab({ orgId }: { orgId: string }) {
     statusFilter === 'all' || wo.status === statusFilter
   );
 
+  const completedOrders = workOrders?.filter(wo => wo.status === 'completed') ?? [];
+  const totalEstimated = completedOrders.reduce((s, wo) => s + (wo.estimated_cost_cents ?? 0), 0);
+  const totalActual = completedOrders.reduce((s, wo) => s + (wo.actual_cost_cents ?? 0), 0);
+  const overdueOrders = workOrders?.filter(wo =>
+    (wo.status === 'open' || wo.status === 'in_progress') &&
+    wo.scheduled_date && new Date(wo.scheduled_date + 'T00:00:00') < new Date()
+  ) ?? [];
+
   if (isLoading) return <ListSkeleton rows={5} />;
 
   return (
@@ -86,6 +94,59 @@ export function WorkOrdersTab({ orgId }: { orgId: string }) {
             <p className={`text-lg font-bold mt-0.5 ${(workOrders?.filter(wo => wo.priority === 'urgent' && wo.status !== 'completed' && wo.status !== 'cancelled').length ?? 0) > 0 ? 'text-[#EF4444]' : 'text-[#94A3B8]'}`}>
               {workOrders?.filter(wo => wo.priority === 'urgent' && wo.status !== 'completed' && wo.status !== 'cancelled').length ?? 0}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Overdue Alert */}
+      {overdueOrders.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#EF4444]/5 border border-[#EF4444]/15 rounded-xl p-4"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle size={14} className="text-[#EF4444]" />
+            <span className="text-sm font-medium text-[#EF4444]">{overdueOrders.length} Overdue</span>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {overdueOrders.slice(0, 3).map(wo => (
+              <span key={wo.id} className="text-xs bg-white/80 text-[#EF4444] px-2 py-1 rounded-md font-medium truncate max-w-[180px]">
+                {wo.title}
+              </span>
+            ))}
+            {overdueOrders.length > 3 && (
+              <span className="text-xs text-[#EF4444]/70">+{overdueOrders.length - 3} more</span>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Cost Summary */}
+      {completedOrders.length > 0 && (totalEstimated > 0 || totalActual > 0) && (
+        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0]">
+          <p className="text-[10px] font-medium text-[#94A3B8] uppercase tracking-wider mb-2">Completed Job Costs</p>
+          <div className="flex gap-4">
+            {totalEstimated > 0 && (
+              <div>
+                <p className="text-xs text-[#64748B]">Estimated</p>
+                <p className="text-sm font-bold text-[#1A1A2E]">${(totalEstimated / 100).toLocaleString()}</p>
+              </div>
+            )}
+            {totalActual > 0 && (
+              <div>
+                <p className="text-xs text-[#64748B]">Actual</p>
+                <p className="text-sm font-bold text-[#10B981]">${(totalActual / 100).toLocaleString()}</p>
+              </div>
+            )}
+            {totalEstimated > 0 && totalActual > 0 && (
+              <div>
+                <p className="text-xs text-[#64748B]">Variance</p>
+                <p className={`text-sm font-bold ${totalActual <= totalEstimated ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                  {totalActual <= totalEstimated ? '-' : '+'}${(Math.abs(totalActual - totalEstimated) / 100).toLocaleString()}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
