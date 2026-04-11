@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, Waves, Thermometer, Shield, BarChart3, Phone, Mail, User } from 'lucide-react';
+import { Droplets, Calendar, Clock, Beaker, Wrench, CheckCircle2, AlertCircle, DollarSign, FileText, Send, TrendingUp, TrendingDown, Minus, Waves, Thermometer, Shield, BarChart3, Phone, Mail, User, Camera } from 'lucide-react';
 import type { ChemicalAdded, EquipmentStatus } from '@/lib/supabase';
 import { CollapsibleSection, ServiceRequestForm } from './portal-client';
 
@@ -55,7 +55,7 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
   const [{ data: serviceLogs }, { data: routeStops }, { data: invoices }, { data: workOrders }, { data: pools }] = await Promise.all([
     supabase
       .from('service_logs')
-      .select('id, service_date, chlorine_level, ph_level, alkalinity, cya, calcium, salt_level, water_temp, chemicals_added, equipment_status, notes, time_on_site_minutes, technician_id, users:technician_id(name)')
+      .select('id, service_date, chlorine_level, ph_level, alkalinity, cya, calcium, salt_level, water_temp, chemicals_added, equipment_status, notes, time_on_site_minutes, technician_id, photos, users:technician_id(name)')
       .eq('customer_id', id)
       .order('service_date', { ascending: false })
       .limit(30),
@@ -109,6 +109,31 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
   const paidCents = invoices?.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_cents, 0) ?? 0;
   const lastServiceDate = serviceLogs?.[0]?.service_date;
 
+  // Water quality grade (A-F based on how many readings are in ideal range)
+  const waterGrade = (() => {
+    if (!serviceLogs?.length) return null;
+    const latest = serviceLogs[0];
+    const checks = [
+      { val: latest.ph_level, min: 7.2, max: 7.6 },
+      { val: latest.chlorine_level, min: 1, max: 3 },
+      { val: latest.alkalinity, min: 80, max: 120 },
+      { val: latest.cya, min: 30, max: 50 },
+    ].filter(c => c.val != null);
+    if (checks.length === 0) return null;
+    const passing = checks.filter(c => c.val! >= c.min && c.val! <= c.max).length;
+    const pct = passing / checks.length;
+    if (pct >= 1) return { grade: 'A', color: 'text-emerald-600 bg-emerald-50', label: 'Excellent' };
+    if (pct >= 0.75) return { grade: 'B', color: 'text-emerald-600 bg-emerald-50', label: 'Good' };
+    if (pct >= 0.5) return { grade: 'C', color: 'text-amber-600 bg-amber-50', label: 'Fair' };
+    if (pct >= 0.25) return { grade: 'D', color: 'text-orange-600 bg-orange-50', label: 'Needs Work' };
+    return { grade: 'F', color: 'text-red-600 bg-red-50', label: 'Critical' };
+  })();
+
+  // Service photos from recent visits
+  const servicePhotos = serviceLogs
+    ?.flatMap(log => (log.photos as string[] ?? []).map(url => ({ url, date: log.service_date })))
+    .slice(0, 8) ?? [];
+
   // Get assigned technician info
   const assignedTech = (() => {
     if (!routeStops?.length) return null;
@@ -138,9 +163,16 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
             <p className="text-sm text-[#64748B] mt-0.5">
               {customer.address}, {customer.city}, {customer.state} {customer.zip}
             </p>
-            <span className="inline-block mt-2 text-xs font-medium px-2.5 py-1 rounded-full bg-[#0066FF]/8 text-[#0066FF]">
-              {frequencyLabel[customer.service_frequency] || customer.service_frequency} Service
-            </span>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#0066FF]/8 text-[#0066FF]">
+                {frequencyLabel[customer.service_frequency] || customer.service_frequency} Service
+              </span>
+              {waterGrade && (
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${waterGrade.color}`}>
+                  {waterGrade.grade} — {waterGrade.label}
+                </span>
+              )}
+            </div>
           </div>
         </header>
 
@@ -204,6 +236,30 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
           {/* Service Request */}
           <ServiceRequestForm customerId={customer.id} />
 
+          {/* Service Photos Gallery */}
+          {servicePhotos.length > 0 && (
+            <CollapsibleSection
+              title="Service Photos"
+              icon={<Camera size={16} className="text-[#0066FF]" />}
+              badge={<span className="ml-auto text-[10px] text-[#94A3B8]">{servicePhotos.length} photo{servicePhotos.length !== 1 ? 's' : ''}</span>}
+              defaultOpen={false}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {servicePhotos.map((photo, i) => (
+                  <a key={i} href={photo.url} target="_blank" rel="noopener noreferrer" className="block">
+                    <div className="relative aspect-square rounded-xl overflow-hidden border border-[#E2E8F0] bg-[#F1F5F9]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photo.url} alt={`Service photo from ${formatDate(photo.date)}`} className="w-full h-full object-cover" />
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent px-2 py-1.5">
+                        <p className="text-[10px] text-white font-medium">{formatDate(photo.date)}</p>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* Your Technician */}
           {assignedTech && (
             <div className="bg-white rounded-xl border border-[#E2E8F0] px-4 py-3">
@@ -230,6 +286,38 @@ export default async function CustomerPortal({ params }: { params: Promise<{ id:
               </div>
             </div>
           )}
+
+          {/* Service Consistency */}
+          {serviceLogs && serviceLogs.length >= 3 && (() => {
+            const totalVisits = serviceLogs.length;
+            const dates = serviceLogs.map(l => new Date(l.service_date + 'T00:00:00').getTime());
+            const intervals: number[] = [];
+            for (let i = 0; i < dates.length - 1; i++) {
+              intervals.push((dates[i] - dates[i + 1]) / (1000 * 60 * 60 * 24));
+            }
+            const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+            const firstDate = new Date(serviceLogs[serviceLogs.length - 1].service_date + 'T00:00:00');
+            const monthsActive = Math.max(1, Math.round((Date.now() - firstDate.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+
+            return (
+              <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+                <div className="grid grid-cols-3 divide-x divide-[#E2E8F0]">
+                  <div className="p-3 text-center">
+                    <p className="text-lg font-bold text-[#1A1A2E]">{totalVisits}</p>
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Total Visits</p>
+                  </div>
+                  <div className="p-3 text-center">
+                    <p className="text-lg font-bold text-[#1A1A2E]">{Math.round(avgInterval)}d</p>
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Avg Interval</p>
+                  </div>
+                  <div className="p-3 text-center">
+                    <p className="text-lg font-bold text-[#1A1A2E]">{monthsActive}</p>
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wide font-medium">Months Active</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Water Quality Summary */}
           {serviceLogs && serviceLogs.length > 0 && (() => {

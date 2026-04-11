@@ -281,6 +281,39 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                 Optimize All Routes
               </button>
             )}
+            {/* Total optimization summary */}
+            {Object.keys(optimizeResults).length > 0 && (() => {
+              const results = Object.values(optimizeResults);
+              const totalSavedMiles = results.reduce((s, r) => s + r.saved_miles, 0);
+              const totalOriginal = results.reduce((s, r) => s + r.original_miles, 0);
+              const totalOptimized = results.reduce((s, r) => s + r.total_miles, 0);
+              const totalTimeSaved = Math.round((totalSavedMiles / 25) * 60);
+              const totalFuelSaved = Math.round((totalSavedMiles / 20) * 3.5 * 100) / 100;
+              const weeklySavings = totalFuelSaved;
+              const monthlySavings = Math.round(weeklySavings * 4.3 * 100) / 100;
+              if (totalSavedMiles <= 0) return null;
+              return (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1">
+                    <Route size={12} /> Fleet Optimization Summary
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="text-center">
+                      <p className="text-lg font-bold text-emerald-800">{Math.round(totalSavedMiles * 10) / 10} mi</p>
+                      <p className="text-[10px] text-emerald-600">Miles saved/week</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-bold text-emerald-800">~{totalTimeSaved} min</p>
+                      <p className="text-[10px] text-emerald-600">Drive time saved/week</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-emerald-700 pt-2 border-t border-emerald-200">
+                    <span>{Math.round(totalOriginal * 10) / 10} mi → {Math.round(totalOptimized * 10) / 10} mi ({Math.round((totalSavedMiles / totalOriginal) * 100)}% reduction)</span>
+                    <span>${monthlySavings}/mo fuel savings</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
@@ -364,6 +397,8 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                         {/* Optimization Result */}
                         {optimizeResults[route.id] && (() => {
                           const r = optimizeResults[route.id];
+                          const timeSavedMin = Math.round((r.saved_miles / 25) * 60);
+                          const fuelSaved = Math.round((r.saved_miles / 20) * 3.5 * 100) / 100;
                           return (
                             <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                               <div className="flex items-center justify-between mb-2">
@@ -386,12 +421,12 @@ export function RoutesTab({ orgId }: { orgId: string }) {
                                   <p className="text-sm font-bold text-emerald-800">{r.saved_pct}%</p>
                                 </div>
                               </div>
-                              {(r.clusters > 1 || r.longest_leg > 3) && (
-                                <div className="mt-2 pt-2 border-t border-emerald-200 flex gap-3 text-[10px] text-emerald-700">
-                                  {r.clusters > 1 && <span>{r.clusters} geographic zones detected</span>}
-                                  {r.longest_leg > 3 && <span>Longest leg: {r.longest_leg} mi</span>}
-                                </div>
-                              )}
+                              <div className="mt-2 pt-2 border-t border-emerald-200 flex flex-wrap gap-3 text-[10px] text-emerald-700">
+                                {timeSavedMin > 0 && <span><Clock size={9} className="inline mr-0.5" /> ~{timeSavedMin} min saved</span>}
+                                {fuelSaved > 0 && <span><Fuel size={9} className="inline mr-0.5" /> ~${fuelSaved} fuel saved</span>}
+                                {r.clusters > 1 && <span>{r.clusters} geographic zones</span>}
+                                {r.longest_leg > 3 && <span>Longest leg: {r.longest_leg} mi</span>}
+                              </div>
                             </div>
                           );
                         })()}
